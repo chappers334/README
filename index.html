@@ -208,8 +208,10 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <div><b id="stDays">—</b><span>Days / photos</span></div>
     </div>
     <div class="row">
-      <button class="btn" id="reportBtn">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>Print report</button>
+      <button class="btn" id="reportA4">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>Print A4</button>
+      <button class="btn" id="reportReceipt">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px" aria-hidden="true"><path d="M7 2h10v20l-2.5-1.5L12 22l-2.5-1.5L7 22z"/><path d="M10 7h4M10 11h4M10 15h2"/></svg>Print receipt</button>
       <span class="small muted" id="reportHint"></span>
     </div>
   </section>
@@ -511,9 +513,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       $("#cosc").innerHTML = `<span class="pill ${ok ? "gain" : "loss"}">${ok ? "Within" : "Outside"} chronometer limits (−4 / +6 s/day)</span>`;
     }
     drawDial(A.rate);
-    $("#reportBtn").disabled = A.rate === undefined || S.reporting;
+    $("#reportA4").disabled = $("#reportReceipt").disabled = A.rate === undefined || !!S.reporting;
     $("#reportHint").textContent = A.rate === undefined ? "Available once a photo is taken at least a day after the first."
-      : downloader ? "Saves a PDF you can print or share." : "Downloads a PDF you can print or share.";
+      : "A4 is a full-page report with photos. Receipt fits an 80 mm receipt printer.";
     drawChart(counted, A);
     $("#chartPanel").hidden = A.rate === undefined;
     $("#chartNote").textContent = A.rate === undefined ? "The line appears after the second photo." :
@@ -653,21 +655,20 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   const pdfText = (t) => String(t).replace(/−/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/—/g, "-");
   const longDate = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  async function makeReport() {
-    const w = cur(); if (!w) return;
-    const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
-    const counted = withRel(all, w.runStart || 0).run.filter((r) => r.counted);
-    const A = analyse(counted);
-    if (A.rate === undefined) return;
-    const btn = $("#reportBtn"); S.reporting = true; btn.disabled = true; $("#reportHint").textContent = "Preparing the report…";
-    try {
-      const jsPDF = await loadJsPDF();
+  const r1 = (v) => Math.round(v * 10) / 10;
+  const verdict = (v, unit) => (r1(v) === 0 ? "Keeping time" : (v < 0 ? "Losing " : "Gaining ") + fmtDur(Math.abs(v)).slice(1) + " " + unit);
+  const METHOD = "These readings were captured daily using camera technology. Once a day the watch dial was photographed with a smartphone camera. " +
+    "The positions of the minute and seconds hands were read from each photograph using AI-assisted image recognition and checked by the watchmaker. " +
+    "The time of each photograph comes from the phone's network-synchronised clock, which is accurate to a fraction of a second. " +
+    "Comparing how far the watch moved between photographs with how much time actually passed gives the seconds gained or lost each day. " +
+    "The first photograph is the starting point (0 s). Each later figure is the gain (+) or loss (-) since the previous day's photograph.";
+
+  async function buildA4(jsPDF, w, counted, A) {
       const thumbs = await Promise.all(counted.map((r) => squareThumb(r)));
       const doc = new jsPDF({ unit: "mm", format: "a4" });
       const ink = [20, 26, 36], muted = [93, 104, 120], gain = [29, 122, 79], loss = [179, 50, 43], accent = [35, 70, 168], rule = [221, 226, 234];
       const L = 18, R = 192, W = R - L;
       const T = (str, x, y, o) => doc.text(pdfText(str), x, y, o);
-      const r1 = (v) => Math.round(v * 10) / 10;
       const col = (v) => (r1(v) < 0 ? loss : r1(v) > 0 ? gain : ink);
       let y = 22;
 
@@ -686,12 +687,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       // Method
       doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...ink); T("How these readings were captured", L, y); y += 6;
       doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...ink);
-      const method = "These readings were captured daily using camera technology. Once a day the watch dial was photographed with a smartphone camera. " +
-        "The positions of the minute and seconds hands were read from each photograph using AI-assisted image recognition and checked by the watchmaker. " +
-        "The time of each photograph comes from the phone's network-synchronised clock, which is accurate to a fraction of a second. " +
-        "Comparing how far the watch moved between photographs with how much time actually passed gives the seconds gained or lost each day. " +
-        "The first photograph is the starting point (0 s). Each later figure is the gain (+) or loss (-) since the previous day's photograph.";
-      const lines = doc.splitTextToSize(pdfText(method), W); doc.text(lines, L, y); y += lines.length * 3.9 + 5;
+      const lines = doc.splitTextToSize(pdfText(METHOD), W); doc.text(lines, L, y); y += lines.length * 3.9 + 5;
 
       // Table
       const rowH = 21, cx = { photo: L, day: L + 24, date: L + 44, change: R - 34, total: R };
@@ -724,7 +720,6 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       if (y + 52 > 280) { doc.addPage(); y = 20; }
       y += 4;
       doc.setDrawColor(...ink); doc.setLineWidth(0.6); doc.line(L, y, R, y); doc.setLineWidth(0.2); y += 9;
-      const verdict = (v, unit) => (r1(v) === 0 ? "Keeping time" : (v < 0 ? "Losing " : "Gaining ") + fmtDur(Math.abs(v)).slice(1) + " " + unit);
       const sumRow = (label, value, sub, c) => {
         doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(...ink); T(label, L, y);
         doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...c); T(value, R, y, { align: "right" });
@@ -746,7 +741,72 @@ header.top { display: flex; align-items: center; justify-content: space-between;
         T(`${w.name}${w.job ? " - Job " + w.job : ""}`, L, 290); T(`Page ${i} of ${pages}`, R, 290, { align: "right" });
       }
 
-      const filename = ("Rate report " + w.name + (w.job ? " job " + w.job : "")).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) + ".pdf";
+      return doc;
+  }
+
+  // 80 mm receipt: monospaced, no photos, height fitted to the content
+  function buildReceipt(jsPDF, w, counted, A) {
+    const draw = (doc) => {
+      const L = 5, R = 75, C = 40, W = R - L, lh = 3.9;
+      const T = (str, x, y, o) => doc.text(pdfText(str), x, y, o);
+      let y = 8;
+      const font = (bold, size) => { doc.setFont("courier", bold ? "bold" : "normal"); doc.setFontSize(size); };
+      const dash = () => { y += 1; doc.setLineDashPattern([1, 1], 0); doc.setDrawColor(0); doc.line(L, y, R, y); doc.setLineDashPattern([], 0); y += 4.5; };
+      const wrapText = (str, size, bold, align) => { font(bold, size); const ls = doc.splitTextToSize(pdfText(str), W); ls.forEach((l) => { T(l, align === "center" ? C : L, y, align === "center" ? { align: "center" } : undefined); y += lh; }); };
+      const pair = (a, b, bold) => { font(bold, 8.5); T(a, L, y); T(b, R, y, { align: "right" }); y += lh; };
+      const shortDate = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+      doc.setTextColor(0);
+
+      font(true, 12); T("WATCH RATE REPORT", C, y, { align: "center" }); y += 6;
+      wrapText(w.name, 9.5, true, "center");
+      if (w.job) { font(false, 9.5); T("Job number " + w.job, C, y, { align: "center" }); y += lh; }
+      dash();
+      const d0 = new Date(counted[0].t), d1 = new Date(counted[counted.length - 1].t);
+      const dfmt = (d) => d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+      pair("Test from", dfmt(d0)); pair("Test to", dfmt(d1));
+      pair("Length", `${A.days.toFixed(1)} days, ${counted.length} photos`);
+      dash();
+      wrapText("Readings captured daily using camera technology. Each day the dial was photographed with a smartphone camera and the hands read by AI-assisted image recognition, checked by the watchmaker. Times come from the phone's network-synchronised clock. Each figure is the gain (+) or loss (-) since the previous day's photo.", 7.5, false);
+      dash();
+      font(true, 8); T("DAY / DATE", L, y); T("GAIN/LOSS", R, y, { align: "right" }); y += lh + 0.6;
+      counted.forEach((r) => {
+        const label = (r.first ? "Start" : "Day " + Math.round((r.t - counted[0].t) / DAY)).padEnd(6, " ") + " " + shortDate(r.t);
+        font(false, 8.5); T(label, L, y);
+        font(true, 9); T(r.first ? "0.0 s" : fmtDur(r.dayChange), R, y, { align: "right" }); y += lh;
+        if (!r.first) { font(false, 7.5); T("total " + fmtDur(r.rel), R, y, { align: "right" }); y += lh; }
+        y += 0.8;
+      });
+      dash();
+      font(true, 9); T("AVERAGE PER DAY", L, y); T(fmtDur(A.rate), R, y, { align: "right" }); y += lh;
+      font(false, 8); T(verdict(A.rate, "per day"), R, y, { align: "right" }); y += lh + 1;
+      font(true, 9); T("WEEKLY AVERAGE", L, y); T(fmtDur(A.week), R, y, { align: "right" }); y += lh;
+      font(false, 8); T(verdict(A.week, "per week"), R, y, { align: "right" }); y += lh + 1;
+      pair("Total over test", fmtDur(A.change), true);
+      const ok = A.rate >= -4 && A.rate <= 6;
+      pair("Chronometer -4/+6 s", ok ? "WITHIN" : "OUTSIDE", true);
+      dash();
+      wrapText("Average per day = total since first photo / days. Weekly = daily average x 7.", 7, false);
+      y += 1.5;
+      font(false, 7.5); T("Printed " + new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }), C, y, { align: "center" });
+      return y + 8;
+    };
+    const height = draw(new jsPDF({ unit: "mm", format: [80, 2000] }));
+    const doc = new jsPDF({ unit: "mm", format: [80, Math.max(height, 82)], orientation: "portrait" });
+    draw(doc);
+    return doc;
+  }
+
+  async function makeReport(kind) {
+    const w = cur(); if (!w) return;
+    const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
+    const counted = withRel(all, w.runStart || 0).run.filter((r) => r.counted);
+    const A = analyse(counted);
+    if (A.rate === undefined) return;
+    S.reporting = true; $("#reportA4").disabled = $("#reportReceipt").disabled = true; $("#reportHint").textContent = "Preparing the report…";
+    try {
+      const jsPDF = await loadJsPDF();
+      const doc = kind === "receipt" ? buildReceipt(jsPDF, w, counted, A) : await buildA4(jsPDF, w, counted, A);
+      const filename = ("Rate report " + w.name + (w.job ? " job " + w.job : "")).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) + (kind === "receipt" ? " receipt.pdf" : " A4.pdf");
       const blob = doc.output("blob");
       if (downloader) {
         const res = await downloader.save({ filename, data: blob });
@@ -762,7 +822,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       toast(why || (e && e.message) || "The report couldn’t be made. Try again.");
     } finally { S.reporting = false; render(); }
   }
-  $("#reportBtn").onclick = makeReport;
+  $("#reportA4").onclick = () => makeReport("a4");
+  $("#reportReceipt").onclick = () => makeReport("receipt");
 
   // ---------- bench (reading a photo) ----------
   const E = { blob: null, url: null, t: 0, pts: {}, step: 0, method: "manual" };
