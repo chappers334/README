@@ -316,10 +316,13 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function withRel(rs, runStart) {
     const inRun = rs.filter((r) => r.t >= runStart), before = rs.filter((r) => r.t < runStart);
     const tag = (list) => {
-      const b = list[0]; let prev = null;
+      const b = list[0]; let prev = null; const done = [];
       return list.map((r) => {
-        const x = { ...r, rel: b ? Math.round(wrap(r.offset - b.offset) * 10) / 10 : 0, first: r === b };
+        let rel = b ? wrap(r.offset - b.offset) : 0;
+        if (r !== b) rel = snapMinute(rel, expectRel(done, r.t));
+        const x = { ...r, rel: Math.round(rel * 10) / 10, first: r === b };
         x.counted = x.first || r.t - b.t >= MIN_GAP;
+        if (x.counted) done.push(x);
         if (x.counted && prev) { x.dayChange = Math.round((x.rel - prev.rel) * 10) / 10; x.gapDays = (r.t - prev.t) / DAY; }
         if (x.counted) prev = x;
         return x;
@@ -327,6 +330,17 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     };
     return { run: tag(inRun), old: tag(before) };
   }
+  // The seconds hand gives the seconds precisely, but the minute read from the minute hand can be one out.
+  // A watch drifts only seconds a day, so the whole minutes are taken from where earlier readings predict
+  // the watch should be: the last reading plus the average rate so far (or no change if there's no rate yet).
+  function expectRel(done, t) {
+    const last = done[done.length - 1];
+    if (!last) return 0;
+    const first = done[0], span = (last.t - first.t) / DAY;
+    const rate = done.length >= 2 && span > 0.5 ? (last.rel - first.rel) / span : 0;
+    return last.rel + (rate * (t - last.t)) / DAY;
+  }
+  const snapMinute = (rel, expected) => rel + 60 * Math.round((expected - rel) / 60);
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   function toast(msg) { const el = $("#toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2600); }
 
@@ -813,6 +827,7 @@ Reply with JSON only, in exactly this shape:
   function updateResult() {
     const f = readFields(), box = $("#edResult");
     if (!f) { box.innerHTML = `<span class="muted small">Watch error</span><span class="big">—</span><span class="small muted">Place the points or type the minutes and seconds.</span>`; $("#edSave").disabled = true; return; }
+    E.shift = 0;
     const o = offsetFor(E.t, f.m, f.s), w = E.isNew ? null : cur();
     const { run } = w ? withRel(S.readings.filter((r) => r.watchId === w.id && r.t < E.t).sort((a, b) => a.t - b.t), w.runStart || 0) : { run: [] };
     if (!run.length) {
@@ -820,13 +835,16 @@ Reply with JSON only, in exactly this shape:
     } else if (E.t - run[0].t < MIN_GAP) {
       box.innerHTML = `<span class="muted small">Too soon to measure</span><span class="big">—</span><span class="small muted">Only ${fmtWait(E.t - run[0].t)} since the first photo. Gain or loss is shown for photos taken after ${fmtWhen(run[0].t + MIN_GAP)}. You can still save this one.</span>`;
     } else {
-      const rel = wrap(o - run[0].offset);
+      const raw = wrap(o - run[0].offset);
+      const rel = snapMinute(raw, expectRel(run.filter((r) => r.counted), E.t));
+      E.shift = Math.round((rel - raw) / 60);
       const prev = [...run].reverse().find((r) => r.counted);
       const change = Math.round((rel - prev.rel) * 10) / 10, real = (E.t - prev.t) / 1000;
       const cls = change < -0.05 ? "loss" : change > 0.05 ? "gain" : "";
       box.innerHTML = `<span class="muted small">Since the previous photo (${fmtWhen(prev.t)})</span><span class="big ${cls}">${change < -0.05 ? "Lost " + fmtDur(-change).slice(1) : change > 0.05 ? "Gained " + fmtDur(change).slice(1) : "No change"}</span>
         <span class="small muted num">Watch moved ${fmtSpan(real + change)} in ${fmtSpan(real)}</span>
-        <span class="small muted num">Total since the first photo: ${fmtDur(rel)}</span>`;
+        <span class="small muted num">Total since the first photo: ${fmtDur(rel)}</span>
+        ${E.shift ? `<span class="small muted">Minute hand read as ${pad(f.m)}; corrected to ${pad((((f.m + E.shift) % 60) + 60) % 60)} to fit the previous readings. The seconds come from the seconds hand.</span>` : ""}`;
     }
     $("#edSave").disabled = false;
   }
@@ -864,7 +882,8 @@ Reply with JSON only, in exactly this shape:
       catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t add the watch (" + (e.code || e.message) + "). Check your connection and try again."; return; }
       E.isNew = false;
     }
-    const r = { watchId, t: E.t, offset: Math.round(offsetFor(E.t, f.m, f.s) * 10) / 10, min: f.m, sec: f.s, method: E.method, saved: Date.now() };
+    const m = (((f.m + (E.shift || 0)) % 60) + 60) % 60;
+    const r = { watchId, t: E.t, offset: Math.round(offsetFor(E.t, m, f.s) * 10) / 10, min: m, sec: f.s, method: E.method, saved: Date.now() };
     $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
     try { await store.addReading(r, E.blob); closeEditor(); toast("Reading saved"); }
     catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t save the reading (" + (e.code || e.message) + "). Check your connection and try again."; }
