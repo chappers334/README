@@ -140,6 +140,13 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .timegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .result { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: var(--accent-soft); }
 .result .big { font-family: var(--font-num); font-size: 1.6rem; font-weight: 600; }
+.ai { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.ai .spin { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--accent-soft); border-top-color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { .ai .spin { animation: spin 0.9s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai .body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ai .body strong { font-weight: 600; }
+.ai.warn { border-color: var(--warn); }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
 .nudge { display: flex; gap: 6px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg);
@@ -223,10 +230,16 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <button class="btn primary" id="edSave" disabled>Save</button>
     </div>
 
+    <div class="ai" id="aiBox" hidden>
+      <span class="spin" id="aiSpin"></span>
+      <div class="body"><strong id="aiTitle">Reading the hands…</strong><span class="small muted" id="aiText"></span>
+        <div class="row"><button class="btn tiny" id="aiRun" hidden>Read hands with AI</button><button class="btn tiny ghost" id="aiStop">Stop</button></div>
+      </div>
+    </div>
     <div class="prompt" id="edPrompt">Tap the centre of the hands</div>
     <div class="steps" id="edSteps"></div>
     <div class="stagebox"><div id="stage"><img id="photo" alt="Photo of the watch dial"><svg id="overlay"></svg><div id="loupe" hidden></div></div></div>
-    <p class="note">Press and drag to use the magnifier, then lift your finger to place the point. Tap a step above to redo it.</p>
+    <p class="note" id="tapNote">Press and drag to use the magnifier, then lift your finger to place the point. Tap a step above to redo it.</p>
     <label class="toggle"><input type="checkbox" id="smallSec"> Seconds hand is on a small sub-dial</label>
 
     <div class="panel">
@@ -578,8 +591,10 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     $("#editor").hidden = false; $("#editor").scrollTop = 0;
     document.body.style.overflow = "hidden";
     renderSteps(); updateResult();
+    $("#aiBox").hidden = true;
+    if (sampler) runAI();
   }
-  function closeEditor() { $("#editor").hidden = true; document.body.style.overflow = ""; }
+  function closeEditor() { if (aiCtl) aiCtl.abort(); $("#editor").hidden = true; document.body.style.overflow = ""; }
   $("#edCancel").onclick = closeEditor;
   $("#smallSec").onchange = () => { delete E.pts.sc; E.step = firstMissing(); renderSteps(); drawOverlay(); compute(); };
 
@@ -629,9 +644,91 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (!dragging) return; dragging = false; loupe.hidden = true;
     const l = locate(e), d = stepDefs();
     E.pts[d[E.step].k] = { x: l.x, y: l.y };
+    if (E.method === "ai") E.method = "ai-adjusted";
     E.step = firstMissing(); renderSteps(); drawOverlay(); compute();
   });
   stage.addEventListener("pointercancel", () => { dragging = false; loupe.hidden = true; });
+
+  // ---------- AI hand reading (claude.ai only) ----------
+  let sampler = null, aiCtl = null;
+  async function initAI() {
+    if (!window.claude || typeof window.claude.use !== "function") return;
+    const sm = await window.claude.use("sample");
+    if (!sm) return;
+    const lim = await sm.limits().catch(() => null);
+    if (lim && lim.images) sampler = sm;
+  }
+  function aiState(kind, title, text) {
+    const box = $("#aiBox"); box.hidden = !sampler;
+    box.className = "ai" + (kind === "warn" ? " warn" : "");
+    $("#aiSpin").hidden = kind !== "busy";
+    $("#aiTitle").textContent = title; $("#aiText").textContent = text || "";
+    $("#aiStop").hidden = kind !== "busy"; $("#aiRun").hidden = kind === "busy";
+    $("#aiRun").textContent = kind === "idle" ? "Read hands with AI" : "Try AI again";
+  }
+  async function aiBlob(blob, max = 1568) {
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      return { blob: await new Promise((r) => c.toBlob(r, "image/jpeg", 0.9)), w: c.width, h: c.height, k };
+    } finally { URL.revokeObjectURL(url); }
+  }
+  const aiCopy = { not_granted: "AI reading is switched off for this page. Tap the hands yourself.", rate_limited: "The AI is busy right now. Tap the hands yourself, or try again in a minute.",
+    refused: "The AI couldn’t read this photo. Tap the hands yourself.", invalid_json: "The AI’s answer couldn’t be used. Try again or tap the hands yourself.",
+    image_rejected: "The photo couldn’t be sent to the AI. Tap the hands yourself.", session_expired: "Your claude.ai session has expired. Reload the page to use AI reading." };
+  async function runAI() {
+    if (!sampler || !E.blob) return;
+    if (aiCtl) aiCtl.abort();
+    const ctl = (aiCtl = new AbortController()), forBlob = E.blob;
+    aiState("busy", "Reading the hands…", "Finding the centre, the 12 o’clock marker and the minute and seconds hands. This takes a few seconds.");
+    try {
+      const im = await aiBlob(forBlob);
+      const prompt = `You are helping a watchmaker measure a mechanical watch's rate. The attached photo shows a watch dial. The image is ${im.w} x ${im.h} pixels; x runs left to right from 0, y runs top to bottom from 0.
+
+Locate these points as precisely as you can, in pixel coordinates of this image:
+- "center": the pivot where the hour and minute hands are mounted.
+- "twelve": the 12 o'clock index/marker on the dial (use the marker itself, so photo rotation is captured).
+- "minute_tip": the very tip of the minute hand (the long hand that reaches the minute track; not the hour hand).
+- "seconds_tip": the very tip of the seconds hand (usually the thinnest hand). If there is no seconds hand, use null.
+- "subdial_center": if the seconds hand is on a small sub-dial, the pivot of that sub-dial; otherwise null.
+Do not confuse chronograph hands or the hour hand with the minute and seconds hands. A chronograph seconds hand that is stopped at 12 is not the running seconds hand.
+
+Also give your own direct reading of the displayed time, and a short description of the watch.
+
+Reply with JSON only, in exactly this shape:
+{"center":{"x":0,"y":0},"twelve":{"x":0,"y":0},"minute_tip":{"x":0,"y":0},"seconds_tip":{"x":0,"y":0},"subdial_center":null,"reading":{"hours":0,"minutes":0,"seconds":0},"watch":"brand and model if visible, otherwise a short description such as 'steel dress watch, white dial'","confidence":"high|medium|low","problem":"empty string, or what made it hard (glare, blur, hands overlapping, no seconds hand)"}`;
+      const res = await sampler.json(prompt, { images: im.blob, modelTier: "complex", signal: ctl.signal, cache: false });
+      if (ctl !== aiCtl || forBlob !== E.blob) return;
+      const pt = (q) => q && Number.isFinite(+q.x) && Number.isFinite(+q.y) ? { x: +q.x / im.k, y: +q.y / im.k } : null;
+      const c = pt(res.center), top = pt(res.twelve), m = pt(res.minute_tip), sec = pt(res.seconds_tip), sc = pt(res.subdial_center);
+      const what = typeof res.watch === "string" ? res.watch.slice(0, 120) : "";
+      if (!c || !top || !m) { aiState("warn", "The AI couldn’t find the hands", (res.problem ? String(res.problem).slice(0, 160) + ". " : "") + "Tap the points yourself."); return; }
+      E.pts = { c, top, m }; if (sec) E.pts.s = sec;
+      $("#smallSec").checked = !!sc; if (sc) E.pts.sc = sc;
+      E.step = firstMissing(); renderSteps(); drawOverlay(); compute();
+      if (!sec) { aiState("warn", what ? "Watch: " + what : "No seconds hand found", "The AI found the minute hand but not the seconds hand. Tap the seconds hand tip yourself."); return; }
+      E.method = "ai";
+      // Cross-check the hand positions against the AI's own reading of the time
+      const f = readFields(), r = res.reading || {};
+      let note = "Check the coloured lines sit on the hands. If one is off, tap that step above and place it yourself.";
+      let kind = res.confidence === "low" ? "warn" : "done";
+      if (f && Number.isFinite(+r.minutes) && Number.isFinite(+r.seconds)) {
+        const diff = Math.abs(wrap(f.m * 60 + f.s - (+r.minutes * 60 + +r.seconds)));
+        if (diff > 3) { kind = "warn"; note = `The hand positions give ${fmtRead({ min: f.m, sec: f.s })} but the AI read ${pad(+r.minutes)}:${pad(+r.seconds)}. Check the lines carefully and fix any that are off.`; }
+      }
+      if (res.problem && kind === "warn") note = String(res.problem).slice(0, 160) + ". " + note;
+      aiState(kind, (what ? "Watch: " + what : "Hands found") + (kind === "warn" ? " · please check" : ""), note);
+    } catch (e) {
+      if (ctl !== aiCtl) return;
+      if (e && e.code === "cancelled") { aiState("idle", "AI reading stopped", "Tap the hands yourself, or run the AI again."); return; }
+      aiState("warn", "AI reading didn’t work", aiCopy[e && e.code] || "Something went wrong. Tap the hands yourself, or try again.");
+    } finally { if (ctl === aiCtl) aiCtl = null; }
+  }
+  $("#aiRun").onclick = runAI;
+  $("#aiStop").onclick = () => { if (aiCtl) aiCtl.abort(); };
 
   function compute() {
     const p = E.pts, small = $("#smallSec").checked;
@@ -641,7 +738,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     let s = Math.round((angleCW(sc, secRef, p.s) / 6) * 2) / 2; if (s >= 60) s -= 60;
     const mFloat = angleCW(p.c, p.top, p.m) / 6;
     const m = (((Math.round(mFloat - s / 60)) % 60) + 60) % 60;
-    $("#fMin").value = m; $("#fSec").value = s; E.method = "tap";
+    $("#fMin").value = m; $("#fSec").value = s; if (E.method !== "ai" && E.method !== "ai-adjusted") E.method = "tap";
     updateResult();
   }
   function readFields() {
@@ -689,6 +786,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       ? "Readings and photos are stored in this browser on this phone. Clearing browser data deletes them."
       : store.assets ? "" : "Readings are saved to your account; photos stay on this phone.";
     store.start(); render();
+    initAI().catch(() => {});
   })();
 })();
 </script>
