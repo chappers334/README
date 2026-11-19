@@ -4,13 +4,13 @@ A phone web app for watchmakers. Photograph a watch dial once a day, tap the han
 
 ## How it works
 
-1. Add a watch and set it roughly to the right time (within a few minutes).
+1. Add a watch. Wind it and keep it running; it doesn't need to show the right time.
 2. Once a day, tap **Photograph watch** and take a sharp, square-on photo with the seconds hand visible.
 3. On the photo, tap: the centre of the hands, the 12 o'clock marker, the tip of the minute hand, and the tip of the seconds hand. There is a magnifier for accuracy. Small-seconds sub-dials are supported.
-4. The app compares the watch reading with the phone's clock at the moment the photo was taken. It shows:
+4. **The first photo is the starting point and counts as 0 s.** From the second photo on, the app shows the seconds (or minutes and seconds) gained or lost since that first photo, timed against the phone's clock. It shows:
    - the average rate in **seconds per day** (a best-fit line through all readings),
    - the expected gain or loss **per 7 days**,
-   - the total measured change, and whether the rate is within chronometer limits (−4 / +6 s/day).
+   - the total gained or lost since the first photo, and whether the rate is within chronometer limits (−4 / +6 s/day).
 
 Keep **Automatic date and time** turned on in the phone settings, so the reference clock is network-synced.
 

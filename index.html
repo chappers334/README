@@ -166,9 +166,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <button class="btn ghost" id="cancelWatch" hidden>Cancel</button>
     </div>
     <ol class="how">
-      <li><b>Set the watch</b> roughly to the right time (within a few minutes) and keep it running.</li>
+      <li><b>Wind the watch</b> and keep it running. It doesn’t need to show the right time.</li>
       <li><b>Once a day</b>, tap <b>Photograph watch</b> and take a sharp, square-on photo of the dial with the seconds hand visible.</li>
-      <li><b>Tap the hands</b> on the photo. The app compares the watch with your phone’s network-synced clock at the moment of the photo.</li>
+      <li><b>The first photo is the starting point</b> and counts as 0 s. Every later photo shows the seconds (or minutes) gained or lost since then, timed by your phone’s network-synced clock.</li>
       <li>After a week you have the average <b>seconds per day</b> and the total gained or lost.</li>
     </ol>
   </section>
@@ -190,13 +190,13 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     <div id="cosc"></div>
     <div class="stats">
       <div><b id="stWeek">—</b><span>Per 7 days</span></div>
-      <div><b id="stChange">—</b><span>Measured</span></div>
+      <div><b id="stChange">—</b><span>Since first photo</span></div>
       <div><b id="stDays">—</b><span>Days / photos</span></div>
     </div>
   </section>
 
   <section id="chartPanel" class="panel" hidden>
-    <h2>Watch error vs phone clock (seconds)</h2>
+    <h2>Gained (+) or lost (−) since the first photo, seconds</h2>
     <div style="overflow-x:auto"><svg class="chart" id="chart" viewBox="0 0 600 260" role="img" aria-label="Watch error over the test"></svg></div>
     <p class="note" id="chartNote"></p>
   </section>
@@ -263,6 +263,21 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   const fmtWhen = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const fmtClock = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
   const toLocalInput = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  const wrap = (o) => (((o + 1800) % 3600) + 3600) % 3600 - 1800;
+  // Gain/loss as seconds, or minutes and seconds once a minute or more
+  function fmtDur(v) {
+    const a = Math.abs(v), sign = v > 0.05 ? "+" : v < -0.05 ? "−" : "±";
+    if (a < 59.95) return sign + a.toFixed(1) + " s";
+    const m = Math.floor(a / 60), sec = a - m * 60;
+    return `${sign}${m} min ${sec.toFixed(1)} s`;
+  }
+  const fmtRead = (r) => `${pad(r.min)}:${r.sec % 1 ? (r.sec < 10 ? "0" : "") + r.sec.toFixed(1) : pad(r.sec)}`;
+  // Each reading measured against the first photo of its test (that first photo = 0 s)
+  function withRel(rs, runStart) {
+    const inRun = rs.filter((r) => r.t >= runStart), before = rs.filter((r) => r.t < runStart);
+    const tag = (list) => { const b = list[0]; return list.map((r) => ({ ...r, rel: b ? Math.round(wrap(r.offset - b.offset) * 10) / 10 : 0, first: r === b })); };
+    return { run: tag(inRun), old: tag(before) };
+  }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   function toast(msg) { const el = $("#toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2600); }
 
@@ -270,8 +285,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function offsetFor(t, min, sec) {
     const d = new Date(t);
     const ref = d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000;
-    let o = min * 60 + sec - ref;
-    return (((o + 1800) % 3600) + 3600) % 3600 - 1800;
+    return wrap(min * 60 + sec - ref);
   }
   function angleCW(c, ref, p) {
     const rx = ref.x - c.x, ry = ref.y - c.y, vx = p.x - c.x, vy = p.y - c.y;
@@ -281,7 +295,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function analyse(rs) {
     const out = { n: rs.length };
     if (rs.length < 2) return out;
-    const t0 = rs[0].t, xs = rs.map((r) => (r.t - t0) / DAY), ys = rs.map((r) => r.offset);
+    const t0 = rs[0].t, xs = rs.map((r) => (r.t - t0) / DAY), ys = rs.map((r) => r.rel);
     const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
     let sxx = 0, sxy = 0;
     xs.forEach((x, i) => { sxx += (x - mx) ** 2; sxy += (x - mx) * (ys[i] - my); });
@@ -403,7 +417,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (!hasW) { $("#chartPanel").hidden = $("#logPanel").hidden = true; return; }
 
     const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
-    const run = all.filter((r) => r.t >= (w.runStart || 0));
+    const { run, old } = withRel(all, w.runStart || 0);
     const A = analyse(run);
     $("#sumTitle").textContent = w.name;
 
@@ -411,17 +425,17 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (A.rate === undefined) {
       big.innerHTML = "—";
       ver.className = "verdict";
-      ver.textContent = run.length === 0 ? "Take your first photo to start the test." : "First reading saved. Take the next photo tomorrow.";
-      $("#stWeek").textContent = "—"; $("#stChange").textContent = run.length ? sgn(run[0].offset) + " s" : "—";
+      ver.textContent = run.length === 0 ? "Take your first photo to start the test. It becomes the starting point (0 s)." : "Starting point saved at 0 s. Gain or loss is measured from your next photo.";
+      $("#stWeek").textContent = "—"; $("#stChange").textContent = run.length ? "0.0 s" : "—";
       $("#stDays").textContent = run.length ? "0 / " + run.length : "—";
       $("#cosc").innerHTML = "";
     } else {
       big.innerHTML = `${sgn(A.rate)}<small>s/day</small>`;
       const losing = A.rate < 0;
       ver.className = "verdict " + (Math.abs(A.rate) < 0.05 ? "" : losing ? "loss" : "gain");
-      ver.textContent = Math.abs(A.rate) < 0.05 ? "Keeping time" : `${losing ? "Losing" : "Gaining"} ${Math.abs(A.week).toFixed(1)} s a week`;
-      $("#stWeek").textContent = sgn(A.week) + " s";
-      $("#stChange").textContent = sgn(A.change) + " s";
+      ver.textContent = Math.abs(A.rate) < 0.05 ? "Keeping time" : `${losing ? "Losing" : "Gaining"} ${fmtDur(Math.abs(A.week)).slice(1)} a week`;
+      $("#stWeek").textContent = fmtDur(A.week);
+      $("#stChange").textContent = fmtDur(A.change);
       $("#stDays").textContent = A.days.toFixed(1) + " / " + run.length;
       const ok = A.rate >= -4 && A.rate <= 6;
       $("#cosc").innerHTML = `<span class="pill ${ok ? "gain" : "loss"}">${ok ? "Within" : "Outside"} chronometer limits (−4 / +6 s/day)</span>`;
@@ -435,24 +449,25 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     // log
     $("#logPanel").hidden = !all.length;
     const ul = $("#log"); ul.replaceChildren();
-    const rev = [...all].reverse();
-    rev.forEach((r) => {
-      const i = all.indexOf(r), prev = all[i - 1];
+    const list = [...old, ...run];
+    [...list].reverse().forEach((r) => {
+      const i = list.indexOf(r), prev = list[i - 1];
       const li = document.createElement("li");
       if (r.t < (w.runStart || 0)) li.className = "old";
       const img = document.createElement("img"); img.className = "thumb"; img.alt = "";
       store.photoSrc(r).then((src) => { if (src) img.src = src; });
-      let sub = `Watch ${fmtClock(r.t + r.offset * 1000)} · phone ${fmtClock(r.t)}`;
+      let sub = `Watch read ${fmtRead(r)} at ${fmtClock(r.t)}`;
       let delta = "";
       if (prev && r.t >= (w.runStart || 0) && prev.t >= (w.runStart || 0)) {
         const dd = (r.t - prev.t) / DAY;
-        if (dd > 0.01) delta = `${sgn((r.offset - prev.offset) / dd)} s/day since last`;
-      } else if (r.t < (w.runStart || 0)) delta = "Before current test";
+        if (dd > 0.01) delta = `${sgn((r.rel - prev.rel) / dd)} s/day since last`;
+      } else if (r.t < (w.runStart || 0)) delta = "Earlier test";
+      if (r.first) delta = r.t < (w.runStart || 0) ? "Start of earlier test" : "Starting point";
       const main = document.createElement("div"); main.className = "main";
       main.innerHTML = `<span class="when"></span><span class="sub num"></span><span class="sub"></span>`;
       main.children[0].textContent = fmtWhen(r.t); main.children[1].textContent = sub; main.children[2].textContent = delta;
       const right = document.createElement("div");
-      right.innerHTML = `<div class="off ${r.offset < 0 ? "loss" : r.offset > 0 ? "gain" : ""}">${sgn(r.offset)} s</div>`;
+      right.innerHTML = `<div class="off ${r.rel < 0 ? "loss" : r.rel > 0 ? "gain" : ""}">${r.first ? "0 s" : fmtDur(r.rel)}</div>`;
       const btns = document.createElement("div"); btns.className = "rowbtns";
       const del = document.createElement("button"); del.className = "btn tiny ghost danger";
       del.textContent = S.arm === r.id ? "Confirm delete" : "Delete";
@@ -482,7 +497,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function drawChart(run, A) {
     const svg = $("#chart"); if (!run.length) { svg.innerHTML = ""; return; }
     const W = 600, H = 260, L = 62, Rm = 20, T = 22, B = 40;
-    const t0 = run[0].t, xs = run.map((r) => (r.t - t0) / DAY), ys = run.map((r) => r.offset);
+    const t0 = run[0].t, xs = run.map((r) => (r.t - t0) / DAY), ys = run.map((r) => r.rel);
     const xMax = Math.max(7, Math.ceil(xs[xs.length - 1]));
     let lo = Math.min(0, ...ys), hi = Math.max(0, ...ys);
     if (A.rate !== undefined) { lo = Math.min(lo, A.b + A.rate * xMax); hi = Math.max(hi, A.b + A.rate * xMax); }
@@ -498,7 +513,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     g += `<polyline class="path" points="${xs.map((x, i) => `${X(x)},${Y(ys[i])}`).join(" ")}"/>`;
     g += xs.map((x, i) => `<circle class="pt${i === xs.length - 1 ? " last" : ""}" cx="${X(x)}" cy="${Y(ys[i])}" r="${i === xs.length - 1 ? 5.5 : 4}"/>`).join("");
     const lx = X(xs[xs.length - 1]), ly = Y(ys[ys.length - 1]);
-    g += `<text x="${Math.min(lx, W - Rm - 4)}" y="${ly - 10}" text-anchor="${lx > W - 80 ? "end" : "middle"}" style="fill:var(--ink);font-weight:600">${sgn(ys[ys.length - 1])} s</text>`;
+    g += `<text x="${Math.min(lx, W - Rm - 4)}" y="${ly - 10}" text-anchor="${lx > W - 80 ? "end" : "middle"}" style="fill:var(--ink);font-weight:600">${fmtDur(ys[ys.length - 1])}</text>`;
     svg.innerHTML = g;
   }
 
@@ -516,7 +531,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   $("#restartRun").onclick = async () => {
     if (S.arm !== "restart") { S.arm = "restart"; $("#restartRun").textContent = "Confirm: start new test"; return; }
     S.arm = null; $("#restartRun").textContent = "Start a new test from now";
-    await store.updateWatch(S.sel, { runStart: Date.now() }); S.menu = false; toast("New test started. Earlier readings are kept but not counted."); render();
+    await store.updateWatch(S.sel, { runStart: Date.now() }); S.menu = false; toast("New test started. Your next photo is the new starting point (0 s)."); render();
   };
   $("#deleteWatch").onclick = async () => {
     if (S.arm !== "delwatch") { S.arm = "delwatch"; $("#deleteWatch").textContent = "Confirm: delete watch and its photos"; return; }
@@ -637,8 +652,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function updateResult() {
     const f = readFields(), box = $("#edResult");
     if (!f) { box.innerHTML = `<span class="muted small">Watch error</span><span class="big">—</span><span class="small muted">Place the points or type the minutes and seconds.</span>`; $("#edSave").disabled = true; return; }
-    const o = offsetFor(E.t, f.m, f.s);
-    box.innerHTML = `<span class="muted small">Watch error at this photo</span><span class="big ${o < 0 ? "loss" : o > 0 ? "gain" : ""}">${sgn(o)} s</span><span class="small muted num">Watch ${fmtClock(E.t + o * 1000)} · phone ${fmtClock(E.t)}</span>`;
+    const o = offsetFor(E.t, f.m, f.s), w = cur();
+    const { run } = withRel(S.readings.filter((r) => r.watchId === w.id && r.t < E.t).sort((a, b) => a.t - b.t), w.runStart || 0);
+    if (!run.length) {
+      box.innerHTML = `<span class="muted small">First photo of this test</span><span class="big">0 s</span><span class="small muted num">This photo is the starting point. Watch read ${fmtRead({ min: f.m, sec: f.s })} at ${fmtClock(E.t)}.</span>`;
+    } else {
+      const rel = wrap(o - run[0].offset), days = (E.t - run[0].t) / DAY;
+      box.innerHTML = `<span class="muted small">Since the first photo (${days.toFixed(1)} days ago)</span><span class="big ${rel < -0.05 ? "loss" : rel > 0.05 ? "gain" : ""}">${fmtDur(rel)}</span><span class="small muted num">${rel < -0.05 ? "Lost" : rel > 0.05 ? "Gained" : "No change"}${days > 0.05 ? ` · ${sgn(rel / days)} s/day` : ""}</span>`;
+    }
     $("#edSave").disabled = false;
   }
   $("#fMin").oninput = $("#fSec").oninput = () => { E.method = "manual"; updateResult(); };
@@ -652,7 +673,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const f = readFields(); if (!f) return;
     const r = { watchId: S.sel, t: E.t, offset: Math.round(offsetFor(E.t, f.m, f.s) * 10) / 10, min: f.m, sec: f.s, method: E.method, saved: Date.now() };
     $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
-    try { await store.addReading(r, E.blob); closeEditor(); toast("Reading saved: " + sgn(r.offset) + " s"); }
+    try { await store.addReading(r, E.blob); closeEditor(); toast("Reading saved"); }
     catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t save the reading (" + (e.code || e.message) + "). Check your connection and try again."; }
     $("#edSave").textContent = "Save"; $("#edSave").disabled = false;
   };
