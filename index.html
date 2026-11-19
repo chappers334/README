@@ -267,6 +267,10 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 (() => {
   const $ = (s) => document.querySelector(s);
   const DAY = 86400000;
+  // Gain/loss is only shown once a photo is at least this long after the first one.
+  // 23 h rather than 24 h so a daily photo taken a little earlier than yesterday's still counts.
+  const MIN_GAP = 23 * 3600000;
+  const fmtWait = (ms) => { const h = Math.floor(ms / 3600000), m = Math.ceil((ms % 3600000) / 60000); return h ? `${h} h ${m} min` : `${m} min`; };
   const S = { mode: "connecting", watches: [], readings: [], sel: null, adding: false, arm: null, menu: false };
   let store = null;
 
@@ -306,8 +310,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     return (a + 360) % 360;
   }
   function analyse(rs) {
-    const out = { n: rs.length };
-    if (rs.length < 2) return out;
+    const out = { n: rs.length, readyAt: rs.length ? rs[0].t + MIN_GAP : 0 };
+    if (rs.length < 2 || rs[rs.length - 1].t - rs[0].t < MIN_GAP) return out;
     const t0 = rs[0].t, xs = rs.map((r) => (r.t - t0) / DAY), ys = rs.map((r) => r.rel);
     const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
     let sxx = 0, sxy = 0;
@@ -438,8 +442,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (A.rate === undefined) {
       big.innerHTML = "—";
       ver.className = "verdict";
-      ver.textContent = run.length === 0 ? "Take your first photo to start the test. It becomes the starting point (0 s)." : "Starting point saved at 0 s. Gain or loss is measured from your next photo.";
-      $("#stWeek").textContent = "—"; $("#stChange").textContent = run.length ? "0.0 s" : "—";
+      ver.textContent = run.length === 0 ? "Take your first photo to start the test. It becomes the starting point (0 s)."
+        : `Starting point saved. Gain or loss is shown from photos taken after ${fmtWhen(A.readyAt)}.`;
+      $("#stWeek").textContent = "—"; $("#stChange").textContent = "—";
       $("#stDays").textContent = run.length ? "0 / " + run.length : "—";
       $("#cosc").innerHTML = "";
     } else {
@@ -455,7 +460,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     }
     drawDial(A.rate);
     drawChart(run, A);
-    $("#chartPanel").hidden = run.length < 1;
+    $("#chartPanel").hidden = A.rate === undefined;
     $("#chartNote").textContent = A.rate === undefined ? "The line appears after the second photo." :
       `Dashed line: best-fit rate over ${A.days.toFixed(1)} days. ${run.length < 7 ? `Keep going: ${Math.max(0, 7 - Math.ceil(A.days))} more day${7 - Math.ceil(A.days) === 1 ? "" : "s"} to complete a week.` : "A full week of readings."}`;
 
@@ -473,14 +478,17 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       let delta = "";
       if (prev && r.t >= (w.runStart || 0) && prev.t >= (w.runStart || 0)) {
         const dd = (r.t - prev.t) / DAY;
-        if (dd > 0.01) delta = `${sgn((r.rel - prev.rel) / dd)} s/day since last`;
+        if (r.t - prev.t >= MIN_GAP) delta = `${sgn((r.rel - prev.rel) / dd)} s/day since last`;
       } else if (r.t < (w.runStart || 0)) delta = "Earlier test";
       if (r.first) delta = r.t < (w.runStart || 0) ? "Start of earlier test" : "Starting point";
+      const base = list.find((x) => x.first && (x.t >= (w.runStart || 0)) === (r.t >= (w.runStart || 0)));
+      const early = !r.first && base && r.t - base.t < MIN_GAP;
+      if (early) delta = "Under 1 day after the first photo, so not counted yet";
       const main = document.createElement("div"); main.className = "main";
       main.innerHTML = `<span class="when"></span><span class="sub num"></span><span class="sub"></span>`;
       main.children[0].textContent = fmtWhen(r.t); main.children[1].textContent = sub; main.children[2].textContent = delta;
       const right = document.createElement("div");
-      right.innerHTML = `<div class="off ${r.rel < 0 ? "loss" : r.rel > 0 ? "gain" : ""}">${r.first ? "0 s" : fmtDur(r.rel)}</div>`;
+      right.innerHTML = early ? `<div class="off muted">—</div>` : `<div class="off ${r.rel < 0 ? "loss" : r.rel > 0 ? "gain" : ""}">${r.first ? "0 s" : fmtDur(r.rel)}</div>`;
       const btns = document.createElement("div"); btns.className = "rowbtns";
       const del = document.createElement("button"); del.className = "btn tiny ghost danger";
       del.textContent = S.arm === r.id ? "Confirm delete" : "Delete";
@@ -753,6 +761,8 @@ Reply with JSON only, in exactly this shape:
     const { run } = withRel(S.readings.filter((r) => r.watchId === w.id && r.t < E.t).sort((a, b) => a.t - b.t), w.runStart || 0);
     if (!run.length) {
       box.innerHTML = `<span class="muted small">First photo of this test</span><span class="big">0 s</span><span class="small muted num">This photo is the starting point. Watch read ${fmtRead({ min: f.m, sec: f.s })} at ${fmtClock(E.t)}.</span>`;
+    } else if (E.t - run[0].t < MIN_GAP) {
+      box.innerHTML = `<span class="muted small">Too soon to measure</span><span class="big">—</span><span class="small muted">Only ${fmtWait(E.t - run[0].t)} since the first photo. Gain or loss is shown for photos taken after ${fmtWhen(run[0].t + MIN_GAP)}. You can still save this one.</span>`;
     } else {
       const rel = wrap(o - run[0].offset), days = (E.t - run[0].t) / DAY;
       box.innerHTML = `<span class="muted small">Since the first photo (${days.toFixed(1)} days ago)</span><span class="big ${rel < -0.05 ? "loss" : rel > 0.05 ? "gain" : ""}">${fmtDur(rel)}</span><span class="small muted num">${rel < -0.05 ? "Lost" : rel > 0.05 ? "Gained" : "No change"}${days > 0.05 ? ` · ${sgn(rel / days)} s/day` : ""}</span>`;
