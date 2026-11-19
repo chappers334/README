@@ -267,7 +267,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <div class="nudge"><button class="btn tiny" data-n="-1">−1 s</button><button class="btn tiny" data-n="-0.5">−½ s</button><button class="btn tiny" data-n="0.5">+½ s</button><button class="btn tiny" data-n="1">+1 s</button></div>
       <div class="field">
         <label for="fRef">Phone time when photo was taken</label>
-        <input class="input num" id="fRef" type="datetime-local" step="1">
+        <input class="input num" id="fRef" type="datetime-local" step="60">
+        <div class="row"><button class="btn tiny" id="dayBack">−1 day</button><button class="btn tiny" id="dayFwd">+1 day</button><span class="small muted num" id="refExact"></span></div>
       </div>
       <div class="result" id="edResult"><span class="muted small">Watch error</span><span class="big">—</span><span class="small muted">Place the points or type the minutes and seconds.</span></div>
       <p class="err" id="edErr" hidden></p>
@@ -293,7 +294,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   const sgn = (v, d = 1) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(d);
   const fmtWhen = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const fmtClock = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
-  const toLocalInput = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  // Minute precision only: phone date pickers often can't show seconds and reset them to :00
+  const toLocalInput = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const wrap = (o) => (((o + 1800) % 3600) + 3600) % 3600 - 1800;
   // Gain/loss as seconds, or minutes and seconds once a minute or more
   function fmtDur(v) {
@@ -626,7 +628,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function openEditor(blob, t) {
     E.blob = blob; if (E.url) URL.revokeObjectURL(E.url); E.url = URL.createObjectURL(blob);
     E.t = t; E.pts = {}; E.step = 0; E.method = "manual";
-    $("#fMin").value = ""; $("#fSec").value = ""; $("#fRef").value = toLocalInput(t);
+    $("#fMin").value = ""; $("#fSec").value = ""; setRef(t);
     $("#edErr").hidden = true;
     E.isNew = !!S.newMode || !cur(); S.newMode = false;
     $("#edWatch").textContent = E.isNew ? "New watch" : cur().name;
@@ -829,7 +831,19 @@ Reply with JSON only, in exactly this shape:
     $("#edSave").disabled = false;
   }
   $("#fMin").oninput = $("#fSec").oninput = () => { E.method = "manual"; updateResult(); };
-  $("#fRef").onchange = () => { const t = new Date($("#fRef").value).getTime(); if (Number.isFinite(t)) { E.t = t; updateResult(); } };
+  // The photo's own seconds (and milliseconds) are always kept; only the date, hour and minute can be changed
+  function setRef(t) {
+    E.t = t; $("#fRef").value = toLocalInput(t);
+    const d = new Date(t);
+    $("#refExact").textContent = `Exact: ${fmtClock(t)}.${Math.floor(d.getMilliseconds() / 100)}`;
+  }
+  $("#fRef").onchange = () => {
+    const v = $("#fRef").value; if (v.length < 16) return;
+    const minute = new Date(v.slice(0, 16)).getTime();
+    if (Number.isFinite(minute)) { setRef(minute + (((E.t % 60000) + 60000) % 60000)); updateResult(); }
+  };
+  $("#dayBack").onclick = () => { setRef(E.t - DAY); updateResult(); };
+  $("#dayFwd").onclick = () => { setRef(E.t + DAY); updateResult(); };
   document.querySelectorAll(".nudge button").forEach((b) => b.onclick = () => {
     const f = readFields(); if (!f) return;
     let tot = (f.m * 60 + f.s + parseFloat(b.dataset.n) + 3600) % 3600;
