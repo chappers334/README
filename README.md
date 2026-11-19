@@ -16,6 +16,10 @@ A phone web app for watchmakers. Photograph a watch dial once a day, tap the han
 
 **Print A4** and **Print receipt** make a PDF for the current test. The receipt is sized for 80 mm receipt printers (no photos). The A4 report has a photo and the gain or loss for every day, the running total, an explanation of how the readings were captured, and the overall average daily and weekly gain or loss. Open the PDF on the phone to print or share it.
 
+**Photo enhancement.** Each photo is cleaned up for display and reports: levels and contrast, glare toned down, sharpened, and the surface around the watch turned white. These are tonal changes only, so nothing in the photo is moved, added or removed, and the dial area is never touched by the background step. The untouched original is kept and can be viewed by tapping a photo. Detail hidden under fully white glare can't be recovered without inventing it, so it isn't.
+
+**Jobs.** Several jobs can run at once. *Watch options → Mark job complete* moves a job to **Past jobs**, which can be searched and reopened. The upload button adds a photo from the gallery, using the time stored in the photo.
+
 Keep **Automatic date and time** turned on in the phone settings, so the reference clock is network-synced.
 
 ## Installing it on a Samsung phone

@@ -108,8 +108,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .btn:disabled { opacity: 0.45; cursor: default; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
-.fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 5;
-  display: inline-flex; align-items: center; gap: 10px; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
+.fab { display: inline-flex; align-items: center; gap: 10px; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
   padding: 15px 26px; font-weight: 700; font-size: 1.02rem; box-shadow: 0 8px 24px rgba(20, 30, 60, 0.28); white-space: nowrap; }
 .fab svg { width: 22px; height: 22px; }
 
@@ -154,11 +153,29 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .ai.warn { border-color: var(--warn); }
 #newBox.ask #fJob { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .chip .job { opacity: 0.7; font-weight: 400; margin-left: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 12px; font-size: 0.84rem; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.enhrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.fabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; gap: 8px; align-items: center; }
+.fabs .fab { position: static; transform: none; }
+.fab.small { padding: 15px 18px; background: var(--surface); color: var(--accent); border: 1px solid var(--line); }
+.past { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.past li button { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 10px 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+.past li:first-child button { border-top: 0; }
+.past .nm { font-weight: 600; min-width: 0; }
+.past .rt { font-family: var(--font-num); font-weight: 600; text-align: right; }
+.past .dt { grid-column: 1 / -1; font-size: 0.82rem; color: var(--muted); }
+.donebar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 0.9rem; }
+#viewer { position: fixed; inset: 0; z-index: 25; background: var(--bg); display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+  padding-block: calc(12px + env(safe-area-inset-top, 0px)) 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#viewer img { width: 100%; max-width: 900px; margin: 0 auto; border-radius: 12px; display: block; }
+.thumbbtn { padding: 0; border: 0; background: none; border-radius: 10px; }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
 .nudge { display: flex; gap: 6px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg);
   padding: 10px 16px; border-radius: 10px; font-weight: 500; z-index: 30; max-width: calc(100% - 32px); }
-@media (prefers-reduced-motion: no-preference) { .fab { transition: transform .15s; } .fab:active { transform: translateX(-50%) scale(0.97); } }
+@media (prefers-reduced-motion: no-preference) { .fab { transition: transform .15s; } .fab:active { transform: scale(0.97); } }
 </style>
 
 <div class="wrap" id="home">
@@ -173,7 +190,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     <h2>Start a test</h2>
     <p class="prompt" style="margin:0">Take a photo of the watch to begin.</p>
     <ol class="how">
-      <li><b>Tap Photograph watch</b> below. The AI recognises the brand and model, then asks you for the job number.</li>
+      <li><b>Tap Photograph watch</b> below (or the upload button for a photo already in your gallery). The AI recognises the brand and model, then asks you for the job number.</li>
       <li><b>Wind the watch</b> and keep it running. It doesn’t need to show the right time.</li>
       <li><b>Once a day</b>, tap <b>Photograph watch</b> and take a sharp, square-on photo of the dial with the seconds hand visible.</li>
       <li><b>The first photo is the starting point</b> and counts as 0 s. Each later photo compares how far the watch moved since the previous photo with how much time really passed, so you see the seconds gained or lost each day.</li>
@@ -188,9 +205,12 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     </div>
     <div id="watchMenu" class="row" hidden>
       <button class="btn tiny" id="editWatchBtn">Edit brand, model and job number</button>
+      <button class="btn tiny" id="completeJob">Mark job complete</button>
+      <button class="btn tiny" id="reopenJob" hidden>Reopen job</button>
       <button class="btn tiny" id="restartRun">Start a new test from now</button>
       <button class="btn tiny danger" id="deleteWatch">Delete watch</button>
     </div>
+    <div class="donebar" id="doneBar" hidden><span id="doneText"></span><button class="btn tiny" id="closePast">Back to current jobs</button></div>
     <div id="editWatch" class="timegrid" hidden>
       <div class="field"><label for="ewName">Brand and model</label><input class="input" id="ewName" maxlength="80"></div>
       <div class="field"><label for="ewJob">Job number</label><input class="input" id="ewJob" maxlength="30"></div>
@@ -228,14 +248,33 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     <div class="avg" id="logAvg" hidden></div>
   </section>
 
+  <section id="pastPanel" class="panel" hidden>
+    <h2>Past jobs</h2>
+    <input class="input" id="pastSearch" type="search" placeholder="Search by brand, model or job number" hidden>
+    <ul class="past" id="pastList"></ul>
+  </section>
+
   <p class="note" id="storageNote"></p>
 </div>
 
 <input type="file" id="camera" accept="image/*" capture="environment" hidden>
-<button class="fab" id="fab" hidden>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/></svg>
-  Photograph watch
-</button>
+<input type="file" id="gallery" accept="image/jpeg,image/*" hidden>
+<div class="fabs" id="fabs" hidden>
+  <button class="fab" id="fab">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/></svg>
+    Photograph watch
+  </button>
+  <button class="fab small" id="uploadBtn" aria-label="Upload a photo from the gallery">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/></svg>
+  </button>
+</div>
+
+<section id="viewer" hidden>
+  <div class="edhead"><button class="btn ghost" id="vClose">Close</button><strong id="vTitle"></strong>
+    <div class="seg" id="vSeg"><button id="vEnh" aria-pressed="true">Enhanced</button><button id="vOrig" aria-pressed="false">Original</button></div></div>
+  <img id="vImg" alt="Photo of the watch">
+  <p class="note" id="vNote"></p>
+</section>
 
 <section id="editor" hidden>
   <div class="wrap">
@@ -259,6 +298,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     </div>
     <div class="prompt" id="edPrompt">Tap the centre of the hands</div>
     <div class="steps" id="edSteps"></div>
+    <div class="enhrow"><span class="small muted" id="enhStatus"></span>
+      <div class="seg" id="enhSeg" hidden><button id="showEnh" aria-pressed="true">Enhanced</button><button id="showOrig" aria-pressed="false">Original</button></div></div>
     <div class="stagebox"><div id="stage"><img id="photo" alt="Photo of the watch dial"><svg id="overlay"></svg><div id="loupe" hidden></div></div></div>
     <p class="note" id="tapNote">Press and drag to use the magnifier, then lift your finger to place the point. Tap a step above to redo it.</p>
     <label class="toggle"><input type="checkbox" id="smallSec"> Seconds hand is on a small sub-dial</label>
@@ -406,10 +447,19 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       start() { emit(); },
       async addWatch(f) { const d = load(); const w = { id: uid(), name: f.name, job: f.job || "", created: Date.now(), runStart: 0 }; d.watches.push(w); save(d); emit(); return w.id; },
       async updateWatch(id, patch) { const d = load(); Object.assign(d.watches.find((w) => w.id === id) || {}, patch); save(d); emit(); },
-      async deleteWatch(id) { const d = load(); const gone = d.readings.filter((r) => r.watchId === id); d.watches = d.watches.filter((w) => w.id !== id); d.readings = d.readings.filter((r) => r.watchId !== id); save(d); for (const r of gone) try { await tx("readwrite", (s) => s.delete(r.id)); } catch {} emit(); },
-      async addReading(r, blob) { r.id = uid(); try { if (blob) { await tx("readwrite", (s) => s.put(blob, r.id)); r.photo = "local"; } } catch {} const d = load(); d.readings.push(r); save(d); emit(); },
-      async deleteReading(r) { const d = load(); d.readings = d.readings.filter((x) => x.id !== r.id); save(d); try { await tx("readwrite", (s) => s.delete(r.id)); } catch {} emit(); },
-      async photoSrc(r) { if (!r.photo) return null; if (urls[r.id]) return urls[r.id]; try { const b = await tx("readonly", (s) => s.get(r.id)); return b ? (urls[r.id] = URL.createObjectURL(b)) : null; } catch { return null; } },
+      async deleteWatch(id) { const d = load(); const gone = d.readings.filter((r) => r.watchId === id); d.watches = d.watches.filter((w) => w.id !== id); d.readings = d.readings.filter((r) => r.watchId !== id); save(d); for (const r of gone) try { await tx("readwrite", (s) => s.delete(r.id)); await tx("readwrite", (s) => s.delete(r.id + ":orig")); } catch {} emit(); },
+      // blob = the photo to show (enhanced when available); orig = the untouched original, kept alongside
+      async addReading(r, blob, orig) {
+        r.id = uid();
+        try { if (blob) { await tx("readwrite", (s) => s.put(blob, r.id)); r.photo = "local"; } if (orig) { await tx("readwrite", (s) => s.put(orig, r.id + ":orig")); r.hasOrig = true; } } catch {}
+        const d = load(); d.readings.push(r); save(d); emit();
+      },
+      async deleteReading(r) { const d = load(); d.readings = d.readings.filter((x) => x.id !== r.id); save(d); try { await tx("readwrite", (s) => s.delete(r.id)); await tx("readwrite", (s) => s.delete(r.id + ":orig")); } catch {} emit(); },
+      async photoSrc(r, which) {
+        const key = which === "orig" && r.hasOrig ? r.id + ":orig" : r.id;
+        if (!r.photo) return null; if (urls[key]) return urls[key];
+        try { const b = await tx("readonly", (s) => s.get(key)); return b ? (urls[key] = URL.createObjectURL(b)) : null; } catch { return null; }
+      },
     };
   }
 
@@ -442,15 +492,18 @@ header.top { display: flex; align-items: center; justify-content: space-between;
         for (const r of S.readings.filter((r) => r.watchId === wid)) await this.deleteReading(r);
         await W.doc(wid).delete();
       },
-      async addReading(r, blob) {
-        if (blob && assets) { try { const up = await assets.upload(blob, { contentType: "image/jpeg" }); r.photoId = up.id; } catch { toast("Photo couldn’t be uploaded; the reading is saved without it."); } }
+      async addReading(r, blob, orig) {
+        if (blob && assets) {
+          try { const up = await assets.upload(blob, { contentType: "image/jpeg" }); r.photoId = up.id; } catch { toast("Photo couldn’t be uploaded; the reading is saved without it."); }
+          if (orig && r.photoId) { try { const up = await assets.upload(orig, { contentType: "image/jpeg" }); r.origId = up.id; } catch {} }
+        }
         await R.add(clean(r));
       },
       async deleteReading(r) {
         await R.doc(r.id).delete();
-        if (r.photoId && assets) { try { await assets.delete(r.photoId); } catch {} }
+        if (assets) for (const id of [r.photoId, r.origId]) if (id) { try { await assets.delete(id); } catch {} }
       },
-      async photoSrc(r) { return r.photoId ? "/_blob/" + r.photoId : local.photoSrc(r); },
+      async photoSrc(r, which) { const id = which === "orig" && r.origId ? r.origId : r.photoId; return id ? "/_blob/" + id : local.photoSrc(r, which); },
     };
   }
 
@@ -458,8 +511,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   const cur = () => S.watches.find((w) => w.id === S.sel);
   function render() {
     S.watches.sort((a, b) => a.created - b.created);
-    if (!cur() && S.watches.length) S.sel = S.watches[0].id;
-    if (!S.watches.length) S.sel = null;
+    const active = S.watches.filter((w) => w.status !== "done"), past = S.watches.filter((w) => w.status === "done");
+    if (!cur()) S.sel = active.length ? active[0].id : null;
     try { if (S.sel) localStorage.setItem("watchRateLog.sel", S.sel); } catch {}
 
     const st = $("#status");
@@ -467,23 +520,28 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     st.querySelector("span").textContent = !store ? "Connecting…" : store.kind === "cloud" ? "Saved to your account" : "Saved on this phone";
 
     const chips = $("#watchChips");
-    chips.replaceChildren(...S.watches.map((w) => {
+    chips.replaceChildren(...active.map((w) => {
       const b = document.createElement("button"); b.className = "chip"; b.textContent = w.name;
       if (w.job) { const j = document.createElement("span"); j.className = "job"; j.textContent = "#" + w.job; b.append(j); }
       b.setAttribute("aria-pressed", String(w.id === S.sel));
       b.onclick = () => { S.sel = w.id; S.adding = false; S.menu = false; render(); };
       return b;
     }));
-    if (S.watches.length) { const a = document.createElement("button"); a.className = "chip add"; a.textContent = "+ Watch"; a.onclick = () => startNewWatch(); chips.append(a); }
-    chips.hidden = !S.watches.length;
+    if (active.length) { const a = document.createElement("button"); a.className = "chip add"; a.textContent = "+ Watch"; a.onclick = () => startNewWatch(); chips.append(a); }
+    chips.hidden = !active.length;
 
-    const showNew = !!store && !S.watches.length;
-    $("#newWatch").hidden = !showNew;
+    renderPast(past);
     const w = cur();
-    const hasW = !!w && !showNew;
+    const isDone = !!w && w.status === "done";
+    const showNew = !!store && !active.length && !isDone;
+    $("#newWatch").hidden = !showNew;
+    const hasW = !!w;
     $("#summary").hidden = !hasW;
-    $("#fab").hidden = !store;
+    $("#fabs").hidden = !store || isDone;
     $("#watchMenu").hidden = !S.menu;
+    $("#doneBar").hidden = !isDone;
+    if (isDone) $("#doneText").textContent = "Completed job" + (w.completedAt ? " · " + new Date(w.completedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
+    $("#completeJob").hidden = isDone; $("#restartRun").hidden = isDone; $("#reopenJob").hidden = !isDone;
     if (!hasW) { $("#chartPanel").hidden = $("#logPanel").hidden = true; return; }
 
     const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
@@ -531,6 +589,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       if (r.t < (w.runStart || 0)) li.className = "old";
       const img = document.createElement("img"); img.className = "thumb"; img.alt = "";
       store.photoSrc(r).then((src) => { if (src) img.src = src; });
+      const tb = document.createElement("button"); tb.className = "thumbbtn"; tb.setAttribute("aria-label", "View photo"); tb.append(img);
+      tb.onclick = () => openViewer(r);
       let sub = `Watch read ${fmtRead(r)}`;
       if (r.counted && r.dayChange !== undefined) {
         const real = r.gapDays * 86400;
@@ -553,7 +613,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       del.textContent = S.arm === r.id ? "Confirm delete" : "Delete";
       del.onclick = async () => { if (S.arm !== r.id) { S.arm = r.id; render(); return; } S.arm = null; try { await store.deleteReading(r); toast("Reading deleted"); } catch (e) { toast("Couldn’t delete: " + (e.code || e.message)); } };
       btns.append(del); right.append(btns);
-      li.append(img, main, right); ul.append(li);
+      li.append(tb, main, right); ul.append(li);
     });
     const avg = $("#logAvg");
     avg.hidden = A.rate === undefined;
@@ -564,6 +624,67 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     }
   }
   function fmtGap(d) { return d < 1.95 && d > 0.95 ? (d >= 1.05 ? d.toFixed(1) + " days" : "1 day") : d.toFixed(1) + " days"; }
+
+  // ---------- past jobs ----------
+  function jobStats(w) {
+    const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
+    const counted = withRel(all, w.runStart || 0).run.filter((r) => r.counted);
+    return { A: analyse(counted), n: all.length, first: all[0], last: all[all.length - 1] };
+  }
+  function renderPast(past) {
+    $("#pastPanel").hidden = !past.length;
+    if (!past.length) return;
+    $("#pastSearch").hidden = past.length < 5;
+    const q = ($("#pastSearch").value || "").trim().toLowerCase();
+    const list = past.filter((w) => !q || (w.name + " " + (w.job || "")).toLowerCase().includes(q))
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+    const dfmt = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    $("#pastList").replaceChildren(...list.map((w) => {
+      const { A, n, first } = jobStats(w);
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.innerHTML = `<span class="nm"></span><span class="rt"></span><span class="dt"></span>`;
+      b.children[0].textContent = w.name + (w.job ? " · Job " + w.job : "");
+      b.children[1].textContent = A.rate === undefined ? "—" : fmtDur(A.rate) + "/day";
+      b.children[1].className = "rt " + (A.rate === undefined ? "" : r1(A.rate) < 0 ? "loss" : r1(A.rate) > 0 ? "gain" : "");
+      b.children[2].textContent = `${first ? dfmt(first.t) : ""}${w.completedAt ? " to " + dfmt(w.completedAt) : ""} · ${n} photo${n === 1 ? "" : "s"}`;
+      b.onclick = () => { S.sel = w.id; S.menu = false; render(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      li.append(b); return li;
+    }));
+    if (!list.length) { const li = document.createElement("li"); li.className = "small muted"; li.textContent = "No past jobs match that search."; $("#pastList").append(li); }
+  }
+  $("#pastSearch").oninput = () => render();
+  $("#completeJob").onclick = async () => {
+    if (S.arm !== "complete") { S.arm = "complete"; $("#completeJob").textContent = "Confirm: mark complete"; return; }
+    S.arm = null; $("#completeJob").textContent = "Mark job complete";
+    const w = cur(); S.menu = false;
+    try { await store.updateWatch(w.id, { status: "done", completedAt: Date.now() }); toast("Job moved to Past jobs"); S.sel = null; }
+    catch (e) { toast("Couldn’t update the job: " + (e.code || e.message)); }
+    render();
+  };
+  $("#reopenJob").onclick = async () => {
+    const w = cur(); S.menu = false;
+    try { await store.updateWatch(w.id, { status: "active", completedAt: 0 }); toast("Job reopened"); } catch (e) { toast("Couldn’t reopen the job: " + (e.code || e.message)); }
+    render();
+  };
+  $("#closePast").onclick = () => { S.sel = null; S.menu = false; render(); };
+
+  // ---------- photo viewer ----------
+  let viewing = null;
+  async function showViewer(which) {
+    $("#vEnh").setAttribute("aria-pressed", String(which !== "orig")); $("#vOrig").setAttribute("aria-pressed", String(which === "orig"));
+    const src = await store.photoSrc(viewing, which); if (src) $("#vImg").src = src;
+  }
+  function openViewer(r) {
+    viewing = r; $("#viewer").hidden = false; document.body.style.overflow = "hidden";
+    $("#vTitle").textContent = fmtWhen(r.t);
+    const hasOrig = !!(r.origId || r.hasOrig);
+    $("#vSeg").hidden = !hasOrig;
+    $("#vNote").textContent = hasOrig ? "Enhanced: white background, glare reduced and sharpened. Nothing in the photo is moved, added or removed; the original is kept." : "";
+    showViewer("enh");
+  }
+  $("#vEnh").onclick = () => showViewer("enh");
+  $("#vOrig").onclick = () => showViewer("orig");
+  $("#vClose").onclick = () => { $("#viewer").hidden = true; document.body.style.overflow = ""; viewing = null; };
 
   function drawDial(rate) {
     const svg = $("#dial");
@@ -825,6 +946,162 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   $("#reportA4").onclick = () => makeReport("a4");
   $("#reportReceipt").onclick = () => makeReport("receipt");
 
+  // ---------- photo enhancement ----------
+  // Tonal changes only. Every pixel stays where it is, so the hands and dial details are never moved,
+  // added or removed: levels, highlight (glare) compression, local contrast and sharpening, plus turning
+  // the surface around the watch white. The dial and bezel (worked out from the centre and 12 o'clock
+  // points) are protected from the background step.
+  function boxBlur(src, W, H, r) {
+    const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+    for (let y = 0; y < H; y++) {
+      let acc = 0; const row = y * W;
+      for (let x = -r; x <= r; x++) acc += src[row + Math.min(W - 1, Math.max(0, x))];
+      for (let x = 0; x < W; x++) {
+        tmp[row + x] = acc / (2 * r + 1);
+        acc += src[row + Math.min(W - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+      }
+    }
+    for (let x = 0; x < W; x++) {
+      let acc = 0;
+      for (let y = -r; y <= r; y++) acc += tmp[Math.min(H - 1, Math.max(0, y)) * W + x];
+      for (let y = 0; y < H; y++) {
+        out[y * W + x] = acc / (2 * r + 1);
+        acc += tmp[Math.min(H - 1, y + r + 1) * W + x] - tmp[Math.max(0, y - r) * W + x];
+      }
+    }
+    return out;
+  }
+  const blur3 = (src, W, H, r) => boxBlur(boxBlur(boxBlur(src, W, H, r), W, H, r), W, H, r);
+
+  // Background mask on a small copy: flood fill from the photo's edges through pixels that look like the surface
+  function backgroundMask(img, protect) {
+    const k = Math.min(1, 480 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(8, Math.round(img.naturalWidth * k)), h = Math.max(8, Math.round(img.naturalHeight * k));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"); g.drawImage(img, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data, N = w * h;
+    const fr = Math.max(2, Math.round(Math.min(w, h) * 0.03)), border = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (x < fr || y < fr || x >= w - fr || y >= h - fr) border.push(y * w + x);
+    const med = [0, 1, 2].map((ch) => { const v = border.map((i) => d[i * 4 + ch]).sort((a, b) => a - b); return v[v.length >> 1]; });
+    const dist = (i) => Math.hypot(d[i * 4] - med[0], d[i * 4 + 1] - med[1], d[i * 4 + 2] - med[2]);
+    const bd = border.map(dist).sort((a, b) => a - b);
+    const T = Math.min(80, Math.max(26, bd[Math.floor(bd.length * 0.8)] * 1.6 + 14));
+    // Dial zone: never touched. Outer ring (bezel, case, lugs): background removed only where it matches the surface colour,
+    // without the gradual-shading allowance used further out.
+    const pc = protect ? { x: protect.x * k, y: protect.y * k, hard: protect.hard * k, soft: protect.soft * k } : null;
+    const zone = (i) => { if (!pc) return 0; const r = Math.hypot((i % w) - pc.x, Math.floor(i / w) - pc.y); return r < pc.hard ? 2 : r < pc.soft ? 1 : 0; };
+    const bg = new Uint8Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
+    for (const i of border) if (!bg[i] && dist(i) < T && zone(i) === 0) { bg[i] = 1; q[qt++] = i; }
+    while (qh < qt) {
+      const i = q[qh++], x = i % w;
+      for (const j of [i - 1, i + 1, i - w, i + w]) {
+        if (j < 0 || j >= N || bg[j] || (j === i - 1 && x === 0) || (j === i + 1 && x === w - 1)) continue;
+        const near = Math.hypot(d[j * 4] - d[i * 4], d[j * 4 + 1] - d[i * 4 + 1], d[j * 4 + 2] - d[i * 4 + 2]);
+        const dj = dist(j);
+        const z = zone(j);
+        if (z === 2) continue;
+        if (z === 1 ? dj < T : dj < T || (near < 9 && dj < T * 1.6)) { bg[j] = 1; q[qt++] = j; }
+      }
+    }
+    // Small specks of surface (wood grain, dust) not joined to the watch become background too.
+    // Anything touching the dial zone, or of real size, is always kept.
+    const seen = new Uint8Array(N), comp = new Int32Array(N);
+    for (let i0 = 0; i0 < N; i0++) {
+      if (bg[i0] || seen[i0]) continue;
+      let n = 0, touchesDial = false, h0 = 0, t0 = 0; comp[t0++] = i0; seen[i0] = 1;
+      while (h0 < t0) {
+        const i = comp[h0++], x = i % w; n++; if (zone(i) === 2) touchesDial = true;
+        for (const j of [i - 1, i + 1, i - w, i + w]) {
+          if (j < 0 || j >= N || seen[j] || bg[j] || (j === i - 1 && x === 0) || (j === i + 1 && x === w - 1)) continue;
+          seen[j] = 1; comp[t0++] = j;
+        }
+      }
+      if (!touchesDial && n < N * 0.004) for (let q2 = 0; q2 < t0; q2++) bg[comp[q2]] = 1;
+    }
+    // Keep a margin round the watch: grow the watch area by 2 px so edges and fine details are never cut
+    const keep = new Uint8Array(N);
+    for (let i = 0; i < N; i++) if (!bg[i]) { const x = i % w, y = (i / w) | 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h) keep[yy * w + xx] = 1; } }
+    let count = 0; for (let i = 0; i < N; i++) if (!keep[i]) count++;
+    const frac = count / N;
+    if (frac < 0.06 || frac > 0.94) return null;
+    const mc = document.createElement("canvas"); mc.width = w; mc.height = h;
+    const mg = mc.getContext("2d"), md = mg.createImageData(w, h);
+    for (let i = 0; i < N; i++) { md.data[i * 4 + 3] = keep[i] ? 0 : 255; }
+    mg.putImageData(md, 0, 0);
+    return mc;
+  }
+
+  async function enhancePhoto(blob, pts) {
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      const W = img.naturalWidth, H = img.naturalHeight, N = W * H;
+      const c = document.createElement("canvas"); c.width = W; c.height = H;
+      const g = c.getContext("2d"); g.drawImage(img, 0, 0);
+      const id = g.getImageData(0, 0, W, H), d = id.data;
+      const Y = new Float32Array(N);
+      const hist = new Uint32Array(256);
+      for (let i = 0; i < N; i++) { const y = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; Y[i] = y; hist[y | 0]++; }
+      const pct = (p) => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= p * N) return v; } return 255; };
+      let lo = pct(0.005), hi = pct(0.997); if (hi - lo < 60) { lo = 0; hi = 255; }
+      const sc = 255 / (hi - lo);
+      await new Promise((r) => setTimeout(r));
+      const big = blur3(Y, W, H, Math.max(4, Math.round(Math.max(W, H) / 90)));
+      const fine = boxBlur(Y, W, H, 1);
+      for (let i = 0; i < N; i++) {
+        const yl = (Y[i] - lo) * sc;
+        let y = yl;
+        if (y > 185) y = 185 + (y - 185) * 0.6;           // tone down glare and bright reflections
+        y += 0.35 * (Y[i] - big[i]) * sc;                 // local contrast: detail under haze stands out
+        y += 0.55 * (Y[i] - fine[i]) * sc;                // gentle sharpening
+        const delta = y - yl;
+        for (let ch = 0; ch < 3; ch++) { const v = (d[i * 4 + ch] - lo) * sc + delta; d[i * 4 + ch] = v < 0 ? 0 : v > 255 ? 255 : v; }
+      }
+      g.putImageData(id, 0, 0);
+      let whitened = false;
+      if (pts && pts.c && pts.top) {
+        const rr = Math.hypot(pts.top.x - pts.c.x, pts.top.y - pts.c.y);
+        const mask = backgroundMask(img, { x: pts.c.x, y: pts.c.y, hard: rr * 1.15, soft: rr * 1.9 });
+        if (mask) {
+          const wc = document.createElement("canvas"); wc.width = W; wc.height = H;
+          const wg = wc.getContext("2d");
+          wg.filter = `blur(${Math.max(1, Math.round(W / 500))}px)`; wg.imageSmoothingEnabled = true; wg.drawImage(mask, 0, 0, W, H);
+          wg.filter = "none"; wg.globalCompositeOperation = "source-in"; wg.fillStyle = "#ffffff"; wg.fillRect(0, 0, W, H);
+          g.drawImage(wc, 0, 0); whitened = true;
+        }
+      }
+      return { blob: await new Promise((r) => c.toBlob(r, "image/jpeg", 0.9)), whitened };
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  // Photo time from the picture's own details (for photos uploaded from the gallery)
+  async function exifTime(file) {
+    try {
+      const v = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
+      if (v.getUint16(0) !== 0xffd8) return null;
+      let o = 2;
+      while (o < v.byteLength - 10) {
+        const marker = v.getUint16(o), len = v.getUint16(o + 2);
+        if (marker === 0xffe1 && v.getUint32(o + 4) === 0x45786966) {
+          const t = o + 10, le = v.getUint16(t) === 0x4949;
+          const u16 = (p) => v.getUint16(p, le), u32 = (p) => v.getUint32(p, le);
+          const str = (p, n) => { let s = ""; for (let i = 0; i < n; i++) { const ch = v.getUint8(p + i); if (!ch) break; s += String.fromCharCode(ch); } return s; };
+          const ifd = (off) => { const tags = {}, n = u16(t + off); for (let i = 0; i < n; i++) { const e = t + off + 2 + i * 12, tag = u16(e), type = u16(e + 2), cnt = u32(e + 4);
+            if (type === 2) tags[tag] = str(cnt > 4 ? t + u32(e + 8) : e + 8, cnt); else if (type === 4) tags[tag] = u32(e + 8); else if (type === 3) tags[tag] = u16(e + 8); } return tags; };
+          const ex = ifd(ifd(u32(t + 4))[0x8769] || 0);
+          const m = (ex[0x9003] || "").match(/(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/); if (!m) return null;
+          const sub = (ex[0x9291] || "").match(/^\d+/), ms = sub ? Math.round(parseFloat("0." + sub[0]) * 1000) : 0;
+          const off = ex[0x9011];
+          const base = off && /^[+-]\d\d:\d\d$/.test(off) ? Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${off}`) : new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+          return Number.isFinite(base) ? base + ms : null;
+        }
+        if ((marker & 0xff00) !== 0xff00) break;
+        o += 2 + len;
+      }
+    } catch {}
+    return null;
+  }
+
   // ---------- bench (reading a photo) ----------
   const E = { blob: null, url: null, t: 0, pts: {}, step: 0, method: "manual" };
   const stepDefs = () => [
@@ -838,17 +1115,26 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 
   // The big button adds a photo to the selected watch; with no watches yet it starts a new one
   $("#fab").onclick = () => { S.newMode = !cur(); $("#camera").value = ""; $("#camera").click(); };
+  $("#uploadBtn").onclick = () => { S.newMode = !cur(); $("#gallery").value = ""; $("#gallery").click(); };
   function startNewWatch() { S.newMode = true; $("#camera").value = ""; $("#camera").click(); }
-  $("#camera").onchange = async (e) => {
-    const f = e.target.files && e.target.files[0]; if (!f) return;
-    const t = f.lastModified && Math.abs(Date.now() - f.lastModified) < 400 * DAY ? f.lastModified : Date.now();
+  async function takeFile(f, uploaded) {
+    if (!f) return;
+    let t = f.lastModified && Math.abs(Date.now() - f.lastModified) < 400 * DAY ? f.lastModified : Date.now(), from = "camera";
+    if (uploaded) { const ex = await exifTime(f); if (ex && Math.abs(Date.now() - ex) < 400 * DAY) { t = ex; from = "exif"; } else from = "file"; }
     let blob;
     try { blob = await prepImage(f); } catch { toast("That photo couldn’t be opened. Try again."); return; }
-    openEditor(blob, t);
-  };
+    openEditor(blob, t, from);
+  }
+  $("#camera").onchange = (e) => takeFile(e.target.files && e.target.files[0], false);
+  $("#gallery").onchange = (e) => takeFile(e.target.files && e.target.files[0], true);
 
-  function openEditor(blob, t) {
+  function openEditor(blob, t, from) {
     E.blob = blob; if (E.url) URL.revokeObjectURL(E.url); E.url = URL.createObjectURL(blob);
+    if (E.enh && E.enh.url) URL.revokeObjectURL(E.enh.url);
+    E.enh = null; E.enhKey = ""; E.view = "orig"; E.enhRun = 0;
+    $("#enhSeg").hidden = true;
+    E.fromNote = from === "exif" ? "Uploaded photo: time taken from the photo’s details. Check it below." : from === "file" ? "Uploaded photo: no time in the photo’s details, so the file’s date is used. Check it below." : "";
+    enhStatus("");
     E.t = t; E.pts = {}; E.step = 0; E.method = "manual";
     $("#fMin").value = ""; $("#fSec").value = ""; setRef(t);
     $("#edErr").hidden = true;
@@ -870,7 +1156,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     document.body.style.overflow = "hidden";
     renderSteps(); updateResult();
     $("#aiBox").hidden = true;
-    if (sampler) runAI();
+    if (sampler) runAI(); else scheduleEnhance();
   }
   function closeEditor() { if (aiCtl) aiCtl.abort(); $("#editor").hidden = true; document.body.style.overflow = ""; }
   $("#edCancel").onclick = closeEditor;
@@ -922,6 +1208,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (!dragging) return; dragging = false; loupe.hidden = true;
     const l = locate(e), d = stepDefs();
     E.pts[d[E.step].k] = { x: l.x, y: l.y };
+    if (d[E.step].k === "c" || d[E.step].k === "top") setTimeout(scheduleEnhance, 0);
     if (E.method === "ai") E.method = "ai-adjusted";
     E.step = firstMissing(); renderSteps(); drawOverlay(); compute();
   });
@@ -990,8 +1277,9 @@ Reply with JSON only, in exactly this shape:
         if (!brandModel) $("#newHint").textContent = "The AI couldn’t tell the brand. Type the brand and model.";
         askJob();
       }
-      if (!c || !top || !m) { aiState("warn", "The AI couldn’t find the hands", (res.problem ? String(res.problem).slice(0, 160) + ". " : "") + "Tap the points yourself."); return; }
+      if (!c || !top || !m) { scheduleEnhance(); aiState("warn", "The AI couldn’t find the hands", (res.problem ? String(res.problem).slice(0, 160) + ". " : "") + "Tap the points yourself."); return; }
       E.pts = { c, top, m }; if (sec) E.pts.s = sec;
+      scheduleEnhance();
       $("#smallSec").checked = !!sc; if (sc) E.pts.sc = sc;
       E.step = firstMissing(); renderSteps(); drawOverlay(); compute();
       if (!sec) { aiState("warn", what ? "Watch: " + what : "No seconds hand found", "The AI found the minute hand but not the seconds hand. Tap the seconds hand tip yourself."); return; }
@@ -1009,12 +1297,41 @@ Reply with JSON only, in exactly this shape:
     } catch (e) {
       if (ctl !== aiCtl) return;
       if (E.isNew) { $("#newHint").textContent = "Type the brand and model, and the job number."; }
+      scheduleEnhance();
       if (e && e.code === "cancelled") { aiState("idle", "AI reading stopped", "Tap the hands yourself, or run the AI again."); return; }
       aiState("warn", "AI reading didn’t work", aiCopy[e && e.code] || "Something went wrong. Tap the hands yourself, or try again.");
     } finally { if (ctl === aiCtl) aiCtl = null; }
   }
   $("#aiRun").onclick = runAI;
   $("#aiStop").onclick = () => { if (aiCtl) aiCtl.abort(); };
+
+  function setView(v) {
+    E.view = v === "enh" && E.enh ? "enh" : "orig";
+    const url = E.view === "enh" ? E.enh.url : E.url;
+    $("#photo").src = url; $("#loupe").style.backgroundImage = `url("${url}")`;
+    $("#showEnh").setAttribute("aria-pressed", String(E.view === "enh")); $("#showOrig").setAttribute("aria-pressed", String(E.view === "orig"));
+  }
+  $("#showEnh").onclick = () => setView("enh");
+  $("#showOrig").onclick = () => setView("orig");
+  // Re-run when the centre or 12 o'clock point changes (they protect the dial from the background step)
+  function enhStatus(t) { $("#enhStatus").textContent = [E.fromNote, t].filter(Boolean).join(" "); }
+  async function scheduleEnhance() {
+    const p = E.pts; if (!E.blob) return;
+    const key = p.c && p.top ? [p.c.x, p.c.y, p.top.x, p.top.y].map(Math.round).join(",") : "none";
+    if (key === E.enhKey) return;
+    E.enhKey = key; const run = ++E.enhRun, forBlob = E.blob;
+    enhStatus("Enhancing the photo…");
+    try {
+      const out = await enhancePhoto(forBlob, p.c && p.top ? p : null);
+      if (run !== E.enhRun || forBlob !== E.blob) return;
+      if (E.enh && E.enh.url) URL.revokeObjectURL(E.enh.url);
+      E.enh = { blob: out.blob, url: URL.createObjectURL(out.blob), whitened: out.whitened };
+      $("#enhSeg").hidden = false; setView("enh");
+      enhStatus(out.whitened ? "Enhanced: white background, glare reduced, sharpened. Nothing is moved or redrawn."
+        : p.c && p.top ? "Enhanced: glare reduced and sharpened. The background was left as it is because the watch couldn’t be separated from the surface; a plain surface works best."
+        : "Enhanced: glare reduced and sharpened. The background turns white once the centre and 12 o’clock are placed.");
+    } catch { if (run === E.enhRun) enhStatus("The photo couldn’t be enhanced; the original will be saved."); }
+  }
 
   function compute() {
     const p = E.pts, small = $("#smallSec").checked;
@@ -1093,7 +1410,8 @@ Reply with JSON only, in exactly this shape:
     const m = (((f.m + (E.shift || 0)) % 60) + 60) % 60;
     const r = { watchId, t: E.t, offset: Math.round(offsetFor(E.t, m, f.s) * 10) / 10, min: m, sec: f.s, method: E.method, saved: Date.now() };
     $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
-    try { await store.addReading(r, E.blob); closeEditor(); toast("Reading saved"); }
+    if (E.enh) r.enhanced = true;
+    try { await store.addReading(r, E.enh ? E.enh.blob : E.blob, E.enh ? E.blob : null); closeEditor(); toast("Reading saved"); }
     catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t save the reading (" + (e.code || e.message) + "). Check your connection and try again."; }
     $("#edSave").textContent = "Save"; $("#edSave").disabled = false;
   };
