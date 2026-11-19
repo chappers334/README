@@ -9,7 +9,8 @@ A phone web app for watchmakers. Photograph a watch dial once a day, tap the han
 3. **In the claude.ai version, AI reads the hands for you.** It places the centre, 12 o'clock, minute-hand and seconds-hand points and names the watch it sees. Check the lines sit on the hands and save. If one is off, tap that step and place it yourself.
    In the GitHub Pages version (no AI), tap the points yourself: the centre of the hands, the 12 o'clock marker, the tip of the minute hand, and the tip of the seconds hand. There is a magnifier for accuracy. Small-seconds sub-dials are supported.
 4. **The first photo is the starting point and counts as 0 s.** Nothing is shown until a photo is taken at least a day later (23 hours, so a daily photo taken a little early still counts). From then on, the app shows the seconds (or minutes and seconds) gained or lost since that first photo, timed against the phone's clock. It shows:
-   - the average rate in **seconds per day** (a best-fit line through all readings),
+   - each day's gain or loss since the previous photo, with the running total, in the **Daily readings** list,
+   - the **average gain or loss per day** (total since the first photo ÷ days), at the bottom of the list and as the headline figure,
    - the expected gain or loss **per 7 days**,
    - the total gained or lost since the first photo, and whether the rate is within chronometer limits (−4 / +6 s/day).
 
