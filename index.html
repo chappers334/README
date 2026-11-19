@@ -207,6 +207,11 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <div><b id="stChange">—</b><span>Since first photo</span></div>
       <div><b id="stDays">—</b><span>Days / photos</span></div>
     </div>
+    <div class="row">
+      <button class="btn" id="reportBtn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>Print report</button>
+      <span class="small muted" id="reportHint"></span>
+    </div>
   </section>
 
   <section id="chartPanel" class="panel" hidden>
@@ -506,6 +511,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       $("#cosc").innerHTML = `<span class="pill ${ok ? "gain" : "loss"}">${ok ? "Within" : "Outside"} chronometer limits (−4 / +6 s/day)</span>`;
     }
     drawDial(A.rate);
+    $("#reportBtn").disabled = A.rate === undefined || S.reporting;
+    $("#reportHint").textContent = A.rate === undefined ? "Available once a photo is taken at least a day after the first."
+      : downloader ? "Saves a PDF you can print or share." : "Downloads a PDF you can print or share.";
     drawChart(counted, A);
     $("#chartPanel").hidden = A.rate === undefined;
     $("#chartNote").textContent = A.rate === undefined ? "The line appears after the second photo." :
@@ -616,6 +624,145 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     try { await store.deleteWatch(w.id); toast("Deleted " + w.name); } catch (e) { toast("Couldn’t delete: " + (e.code || e.message)); }
     S.sel = null; render();
   };
+
+  // ---------- printable report (PDF) ----------
+  let downloader = null, jspdfP = null;
+  async function initDownloads() {
+    if (window.claude && typeof window.claude.use === "function") downloader = await window.claude.use("downloads");
+    render();
+  }
+  function loadJsPDF() {
+    if (window.jspdf) return Promise.resolve(window.jspdf.jsPDF);
+    return jspdfP || (jspdfP = new Promise((res, rej) => {
+      const sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      sc.onload = () => res(window.jspdf.jsPDF);
+      sc.onerror = () => { jspdfP = null; rej(new Error("The report tool couldn’t load. Check your connection and try again.")); };
+      document.head.append(sc);
+    }));
+  }
+  async function squareThumb(r, n = 240) {
+    try {
+      const src = await store.photoSrc(r); if (!src) return null;
+      const img = new Image(); img.src = src; await img.decode();
+      const side = Math.min(img.naturalWidth, img.naturalHeight), c = document.createElement("canvas"); c.width = c.height = n;
+      c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, n, n);
+      return c.toDataURL("image/jpeg", 0.8);
+    } catch { return null; }
+  }
+  const pdfText = (t) => String(t).replace(/−/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/—/g, "-");
+  const longDate = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  async function makeReport() {
+    const w = cur(); if (!w) return;
+    const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
+    const counted = withRel(all, w.runStart || 0).run.filter((r) => r.counted);
+    const A = analyse(counted);
+    if (A.rate === undefined) return;
+    const btn = $("#reportBtn"); S.reporting = true; btn.disabled = true; $("#reportHint").textContent = "Preparing the report…";
+    try {
+      const jsPDF = await loadJsPDF();
+      const thumbs = await Promise.all(counted.map((r) => squareThumb(r)));
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const ink = [20, 26, 36], muted = [93, 104, 120], gain = [29, 122, 79], loss = [179, 50, 43], accent = [35, 70, 168], rule = [221, 226, 234];
+      const L = 18, R = 192, W = R - L;
+      const T = (str, x, y, o) => doc.text(pdfText(str), x, y, o);
+      const r1 = (v) => Math.round(v * 10) / 10;
+      const col = (v) => (r1(v) < 0 ? loss : r1(v) > 0 ? gain : ink);
+      let y = 22;
+
+      // Heading
+      doc.setFillColor(...accent); doc.rect(0, 0, 210, 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(...ink); T("Watch Rate Report", L, y);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...muted); T("Generated " + longDate(Date.now()), R, y, { align: "right" });
+      y += 12;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...ink); T(w.name, L, y);
+      if (w.job) { doc.setFont("helvetica", "normal"); doc.setFontSize(12); T("Job number " + w.job, R, y, { align: "right" }); }
+      y += 7;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...muted);
+      T(`Test period: ${longDate(counted[0].t)} to ${longDate(counted[counted.length - 1].t)}  (${A.days.toFixed(1)} days, ${counted.length} daily photographs)`, L, y);
+      y += 10;
+
+      // Method
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...ink); T("How these readings were captured", L, y); y += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...ink);
+      const method = "These readings were captured daily using camera technology. Once a day the watch dial was photographed with a smartphone camera. " +
+        "The positions of the minute and seconds hands were read from each photograph using AI-assisted image recognition and checked by the watchmaker. " +
+        "The time of each photograph comes from the phone's network-synchronised clock, which is accurate to a fraction of a second. " +
+        "Comparing how far the watch moved between photographs with how much time actually passed gives the seconds gained or lost each day. " +
+        "The first photograph is the starting point (0 s). Each later figure is the gain (+) or loss (-) since the previous day's photograph.";
+      const lines = doc.splitTextToSize(pdfText(method), W); doc.text(lines, L, y); y += lines.length * 3.9 + 5;
+
+      // Table
+      const rowH = 21, cx = { photo: L, day: L + 24, date: L + 44, change: R - 34, total: R };
+      const header = () => {
+        doc.setFillColor(243, 245, 248); doc.rect(L, y, W, 8, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...muted);
+        T("PHOTO", cx.photo + 1, y + 5.4); T("DAY", cx.day, y + 5.4); T("DATE AND TIME", cx.date, y + 5.4);
+        T("GAIN / LOSS THAT DAY", cx.change, y + 5.4, { align: "right" }); T("RUNNING TOTAL", cx.total - 1, y + 5.4, { align: "right" });
+        y += 10;
+      };
+      header();
+      counted.forEach((r, i) => {
+        if (y + rowH > 272) { doc.addPage(); y = 20; header(); }
+        if (thumbs[i]) { try { doc.addImage(thumbs[i], "JPEG", cx.photo + 1, y, 18, 18); } catch {} }
+        else { doc.setDrawColor(...rule); doc.rect(cx.photo + 1, y, 18, 18); }
+        const mid = y + 10.5;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(...ink);
+        T(r.first ? "Start" : "Day " + Math.round((r.t - counted[0].t) / DAY), cx.day, mid);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10); T(longDate(r.t), cx.date, mid);
+        if (r.first) { doc.setTextColor(...muted); T("Starting point", cx.change, mid, { align: "right" }); T("0.0 s", cx.total - 1, mid, { align: "right" }); }
+        else {
+          doc.setFont("helvetica", "bold"); doc.setFontSize(11.5); doc.setTextColor(...col(r.dayChange)); T(fmtDur(r.dayChange), cx.change, mid, { align: "right" });
+          doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...muted); T(fmtDur(r.rel), cx.total - 1, mid, { align: "right" });
+          if (r.gapDays < 0.9 || r.gapDays > 1.1) { doc.setFontSize(7.5); T(`over ${fmtGap(r.gapDays)}`, cx.change, mid + 4, { align: "right" }); }
+        }
+        y += rowH; doc.setDrawColor(...rule); doc.line(L, y - 1.5, R, y - 1.5);
+      });
+
+      // Summary
+      if (y + 52 > 280) { doc.addPage(); y = 20; }
+      y += 4;
+      doc.setDrawColor(...ink); doc.setLineWidth(0.6); doc.line(L, y, R, y); doc.setLineWidth(0.2); y += 9;
+      const verdict = (v, unit) => (r1(v) === 0 ? "Keeping time" : (v < 0 ? "Losing " : "Gaining ") + fmtDur(Math.abs(v)).slice(1) + " " + unit);
+      const sumRow = (label, value, sub, c) => {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(...ink); T(label, L, y);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...c); T(value, R, y, { align: "right" });
+        if (sub) { doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...muted); T(sub, R, y + 4.5, { align: "right" }); }
+        y += sub ? 12 : 9;
+      };
+      sumRow("Overall average daily gain / loss", verdict(A.rate, "per day"), `${fmtDur(A.rate)} per day`, col(A.rate));
+      sumRow("Weekly average", verdict(A.week, "per week"), `${fmtDur(A.week)} per 7 days`, col(A.week));
+      sumRow("Total over the test", fmtDur(A.change), `over ${fmtGap(A.days)}, from ${counted.length - 1} daily changes`, col(A.change));
+      const ok = A.rate >= -4 && A.rate <= 6;
+      sumRow("Chronometer limits (-4 / +6 s per day)", ok ? "Within limits" : "Outside limits", "", ok ? gain : loss);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...muted);
+      doc.text(doc.splitTextToSize("The average daily figure is the total gain or loss since the first photograph divided by the number of days. The weekly average is the daily average multiplied by seven.", W), L, y + 2);
+
+      // Footer on every page
+      const pages = doc.getNumberOfPages();
+      for (let i = 1; i <= pages; i++) {
+        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...muted);
+        T(`${w.name}${w.job ? " - Job " + w.job : ""}`, L, 290); T(`Page ${i} of ${pages}`, R, 290, { align: "right" });
+      }
+
+      const filename = ("Rate report " + w.name + (w.job ? " job " + w.job : "")).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) + ".pdf";
+      const blob = doc.output("blob");
+      if (downloader) {
+        const res = await downloader.save({ filename, data: blob });
+        toast(res && res.status === "delivered" ? "Report sent" : "Report saved. Open it from your downloads to print.");
+      } else {
+        const url = URL.createObjectURL(blob), a = document.createElement("a");
+        a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        toast("Report downloaded. Open it to print.");
+      }
+    } catch (e) {
+      const why = { declined: "Report not saved.", too_large: "The report is too large to save.", rate_limited: "Too many saves just now. Try again in a minute." }[e && e.code];
+      toast(why || (e && e.message) || "The report couldn’t be made. Try again.");
+    } finally { S.reporting = false; render(); }
+  }
+  $("#reportBtn").onclick = makeReport;
 
   // ---------- bench (reading a photo) ----------
   const E = { blob: null, url: null, t: 0, pts: {}, step: 0, method: "manual" };
@@ -902,6 +1049,7 @@ Reply with JSON only, in exactly this shape:
       : store.assets ? "" : "Readings are saved to your account; photos stay on this phone.";
     store.start(); render();
     initAI().catch(() => {});
+    initDownloads().catch(() => {});
   })();
 })();
 </script>

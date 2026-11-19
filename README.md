@@ -14,6 +14,8 @@ A phone web app for watchmakers. Photograph a watch dial once a day, tap the han
    - the expected gain or loss **per 7 days**,
    - the total gained or lost since the first photo, and whether the rate is within chronometer limits (−4 / +6 s/day).
 
+**Print report** makes a PDF for the current test: a photo and the gain or loss for every day, the running total, an explanation of how the readings were captured, and the overall average daily and weekly gain or loss. Open the PDF on the phone to print or share it.
+
 Keep **Automatic date and time** turned on in the phone settings, so the reference clock is network-synced.
 
 ## Installing it on a Samsung phone
