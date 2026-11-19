@@ -57,6 +57,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .status.cloud i { background: var(--gain); }
 .status.local i { background: var(--warn); }
 
+.jobbar { display: flex; gap: 10px; align-items: flex-end; }
+.jobbar select { font-weight: 600; appearance: auto; }
 .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
 .chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-weight: 500; }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -184,7 +186,13 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     <div class="status" id="status"><i></i><span>Connecting…</span></div>
   </header>
 
-  <nav class="chips" id="watchChips" aria-label="Watches"></nav>
+  <div class="jobbar" id="jobBar" hidden>
+    <div class="field" style="flex:1">
+      <label for="jobSelect">Job</label>
+      <select class="input" id="jobSelect"></select>
+    </div>
+    <button class="btn" id="newWatchBtn" aria-label="New watch">+ New</button>
+  </div>
 
   <section id="newWatch" class="panel empty" hidden>
     <h2>Start a test</h2>
@@ -246,12 +254,6 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     <h2>Daily readings</h2>
     <ul class="log" id="log"></ul>
     <div class="avg" id="logAvg" hidden></div>
-  </section>
-
-  <section id="pastPanel" class="panel" hidden>
-    <h2>Past jobs</h2>
-    <input class="input" id="pastSearch" type="search" placeholder="Search by brand, model or job number" hidden>
-    <ul class="past" id="pastList"></ul>
   </section>
 
   <p class="note" id="storageNote"></p>
@@ -519,18 +521,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     st.className = "status " + (store ? store.kind : "");
     st.querySelector("span").textContent = !store ? "Connecting…" : store.kind === "cloud" ? "Saved to your account" : "Saved on this phone";
 
-    const chips = $("#watchChips");
-    chips.replaceChildren(...active.map((w) => {
-      const b = document.createElement("button"); b.className = "chip"; b.textContent = w.name;
-      if (w.job) { const j = document.createElement("span"); j.className = "job"; j.textContent = "#" + w.job; b.append(j); }
-      b.setAttribute("aria-pressed", String(w.id === S.sel));
-      b.onclick = () => { S.sel = w.id; S.adding = false; S.menu = false; render(); };
-      return b;
-    }));
-    if (active.length) { const a = document.createElement("button"); a.className = "chip add"; a.textContent = "+ Watch"; a.onclick = () => startNewWatch(); chips.append(a); }
-    chips.hidden = !active.length;
-
-    renderPast(past);
+    renderJobSelect(active, past);
     const w = cur();
     const isDone = !!w && w.status === "done";
     const showNew = !!store && !active.length && !isDone;
@@ -554,7 +545,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (A.rate === undefined) {
       big.innerHTML = "—";
       ver.className = "verdict";
-      ver.textContent = run.length === 0 ? "Take your first photo to start the test. It becomes the starting point (0 s)."
+      ver.textContent = run.length === 0 ? (w.status === "done" ? "This job has no readings." : "Take your first photo to start the test. It becomes the starting point (0 s).")
         : `Starting point saved. Gain or loss is shown from photos taken after ${fmtWhen(A.readyAt)}.`;
       $("#stWeek").textContent = "—"; $("#stChange").textContent = "—";
       $("#stDays").textContent = run.length ? "0 / " + run.length : "—";
@@ -631,33 +622,36 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const counted = withRel(all, w.runStart || 0).run.filter((r) => r.counted);
     return { A: analyse(counted), n: all.length, first: all[0], last: all[all.length - 1] };
   }
-  function renderPast(past) {
-    $("#pastPanel").hidden = !past.length;
-    if (!past.length) return;
-    $("#pastSearch").hidden = past.length < 5;
-    const q = ($("#pastSearch").value || "").trim().toLowerCase();
-    const list = past.filter((w) => !q || (w.name + " " + (w.job || "")).toLowerCase().includes(q))
-      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
-    const dfmt = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-    $("#pastList").replaceChildren(...list.map((w) => {
-      const { A, n, first } = jobStats(w);
-      const li = document.createElement("li"), b = document.createElement("button");
-      b.innerHTML = `<span class="nm"></span><span class="rt"></span><span class="dt"></span>`;
-      b.children[0].textContent = w.name + (w.job ? " · Job " + w.job : "");
-      b.children[1].textContent = A.rate === undefined ? "—" : fmtDur(A.rate) + "/day";
-      b.children[1].className = "rt " + (A.rate === undefined ? "" : r1(A.rate) < 0 ? "loss" : r1(A.rate) > 0 ? "gain" : "");
-      b.children[2].textContent = `${first ? dfmt(first.t) : ""}${w.completedAt ? " to " + dfmt(w.completedAt) : ""} · ${n} photo${n === 1 ? "" : "s"}`;
-      b.onclick = () => { S.sel = w.id; S.menu = false; render(); window.scrollTo({ top: 0, behavior: "smooth" }); };
-      li.append(b); return li;
-    }));
-    if (!list.length) { const li = document.createElement("li"); li.className = "small muted"; li.textContent = "No past jobs match that search."; $("#pastList").append(li); }
+  // Job dropdown: "1142 — Omega Seamaster 300", current jobs first, then past jobs
+  function renderJobSelect(active, past) {
+    const sel = $("#jobSelect");
+    $("#jobBar").hidden = !store || !S.watches.length;
+    const label = (w) => `${w.job ? w.job : "No job no."} — ${w.name}`;
+    const byJob = (a, b) => String(a.job || "").localeCompare(String(b.job || ""), undefined, { numeric: true }) || a.created - b.created;
+    const opts = [];
+    if (!S.sel) opts.push(`<option value="" selected disabled>Choose a job…</option>`);
+    const group = (title, list, suffix) => {
+      if (!list.length) return;
+      opts.push(`<optgroup label="${title}">`);
+      for (const w of list) opts.push(`<option value="${w.id}"></option>`);
+      opts.push(`</optgroup>`);
+    };
+    group("Current jobs", [...active].sort(byJob));
+    group("Past jobs", [...past].sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)));
+    sel.innerHTML = opts.join("");
+    for (const o of sel.querySelectorAll("option[value]")) {
+      const w = S.watches.find((x) => x.id === o.value); if (!w) continue;
+      o.textContent = label(w) + (w.status === "done" ? " ✓" : "");
+    }
+    sel.value = S.sel || "";
   }
-  $("#pastSearch").oninput = () => render();
+  $("#jobSelect").onchange = (e) => { S.sel = e.target.value || null; S.menu = false; S.arm = null; render(); };
+  $("#newWatchBtn").onclick = () => startNewWatch();
   $("#completeJob").onclick = async () => {
     if (S.arm !== "complete") { S.arm = "complete"; $("#completeJob").textContent = "Confirm: mark complete"; return; }
     S.arm = null; $("#completeJob").textContent = "Mark job complete";
     const w = cur(); S.menu = false;
-    try { await store.updateWatch(w.id, { status: "done", completedAt: Date.now() }); toast("Job moved to Past jobs"); S.sel = null; }
+    try { await store.updateWatch(w.id, { status: "done", completedAt: Date.now() }); toast("Job completed. Find it under Past jobs in the Job list."); S.sel = null; }
     catch (e) { toast("Couldn’t update the job: " + (e.code || e.message)); }
     render();
   };
@@ -679,7 +673,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     $("#vTitle").textContent = fmtWhen(r.t);
     const hasOrig = !!(r.origId || r.hasOrig);
     $("#vSeg").hidden = !hasOrig;
-    $("#vNote").textContent = hasOrig ? "Enhanced: white background, glare reduced and sharpened. Nothing in the photo is moved, added or removed; the original is kept." : "";
+    $("#vNote").textContent = hasOrig ? "Enhanced: background removed so only the watch is shown on white, glare reduced and sharpened. Nothing on the watch is moved, added or removed; the original is kept." : "";
     showViewer("enh");
   }
   $("#vEnh").onclick = () => showViewer("enh");
@@ -1031,7 +1025,56 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     return mc;
   }
 
-  async function enhancePhoto(blob, pts) {
+  // Watch-only mask from the AI's outline: outside the outline is background. Near the outline the edge is
+  // refined by colour: band pixels that match the surface and join the outside become background too.
+  function outlineMask(img, outline, protect) {
+    const k = Math.min(1, 480 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(8, Math.round(img.naturalWidth * k)), h = Math.max(8, Math.round(img.naturalHeight * k)), N = w * h;
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"); g.drawImage(img, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data;
+    const pc = document.createElement("canvas"); pc.width = w; pc.height = h;
+    const pg = pc.getContext("2d"); pg.fillStyle = "#000"; pg.beginPath();
+    outline.forEach((q, i) => (i ? pg.lineTo(q.x * k, q.y * k) : pg.moveTo(q.x * k, q.y * k))); pg.closePath(); pg.fill();
+    const pd = pg.getImageData(0, 0, w, h).data, P = new Float32Array(N);
+    let area = 0; for (let i = 0; i < N; i++) { P[i] = pd[i * 4 + 3] > 127 ? 1 : 0; area += P[i]; }
+    if (area < N * 0.03 || area > N * 0.97) return null;
+    const m = Math.max(3, Math.round(Math.max(w, h) * 0.025));
+    const Pb = boxBlur(P, w, h, m);
+    const outside = (i) => Pb[i] < 0.002, inside = (i) => Pb[i] > 0.998;
+    // the dial zone always stays
+    const hard = protect ? protect.hard * k : 0, cx = protect ? protect.x * k : 0, cy = protect ? protect.y * k : 0;
+    const dial = (i) => protect && Math.hypot((i % w) - cx, Math.floor(i / w) - cy) < hard;
+    // surface colour from pixels clearly outside the outline
+    const samp = []; for (let i = 0; i < N; i += 3) if (outside(i)) samp.push(i);
+    if (samp.length < 50) return null;
+    const med = [0, 1, 2].map((ch) => { const v = samp.map((i) => d[i * 4 + ch]).sort((a, b) => a - b); return v[v.length >> 1]; });
+    const dist = (i) => Math.hypot(d[i * 4] - med[0], d[i * 4 + 1] - med[1], d[i * 4 + 2] - med[2]);
+    const sd = samp.map(dist).sort((a, b) => a - b);
+    const T = Math.min(80, Math.max(24, sd[Math.floor(sd.length * 0.85)] * 1.4 + 12));
+    const bg = new Uint8Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
+    for (let i = 0; i < N; i++) if (outside(i) && !dial(i)) { bg[i] = 1; q[qt++] = i; }
+    while (qh < qt) {
+      const i = q[qh++], x = i % w;
+      for (const j of [i - 1, i + 1, i - w, i + w]) {
+        if (j < 0 || j >= N || bg[j] || (j === i - 1 && x === 0) || (j === i + 1 && x === w - 1)) continue;
+        if (inside(j) || dial(j) || dist(j) >= T) continue;
+        bg[j] = 1; q[qt++] = j;
+      }
+    }
+    // a 1 px margin so the watch's edge is never cut
+    const mc = document.createElement("canvas"); mc.width = w; mc.height = h;
+    const mg = mc.getContext("2d"), md = mg.createImageData(w, h);
+    for (let i = 0; i < N; i++) {
+      let keepIt = !bg[i];
+      if (!keepIt) { const x = i % w; for (const j of [i - 1, i + 1, i - w, i + w]) if (j >= 0 && j < N && !bg[j] && !(j === i - 1 && x === 0) && !(j === i + 1 && x === w - 1)) { keepIt = true; break; } }
+      md.data[i * 4 + 3] = keepIt ? 0 : 255;
+    }
+    mg.putImageData(md, 0, 0);
+    return mc;
+  }
+
+  async function enhancePhoto(blob, pts, outline) {
     const url = URL.createObjectURL(blob);
     try {
       const img = new Image(); img.src = url; await img.decode();
@@ -1061,7 +1104,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       let whitened = false;
       if (pts && pts.c && pts.top) {
         const rr = Math.hypot(pts.top.x - pts.c.x, pts.top.y - pts.c.y);
-        const mask = backgroundMask(img, { x: pts.c.x, y: pts.c.y, hard: rr * 1.15, soft: rr * 1.9 });
+        const protect = { x: pts.c.x, y: pts.c.y, hard: rr * 1.15, soft: rr * 1.9 };
+        const mask = (outline && outlineMask(img, outline, protect)) || backgroundMask(img, protect);
         if (mask) {
           const wc = document.createElement("canvas"); wc.width = W; wc.height = H;
           const wg = wc.getContext("2d");
@@ -1131,7 +1175,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   function openEditor(blob, t, from) {
     E.blob = blob; if (E.url) URL.revokeObjectURL(E.url); E.url = URL.createObjectURL(blob);
     if (E.enh && E.enh.url) URL.revokeObjectURL(E.enh.url);
-    E.enh = null; E.enhKey = ""; E.view = "orig"; E.enhRun = 0;
+    E.enh = null; E.enhKey = ""; E.view = "orig"; E.enhRun = 0; E.outline = null;
     $("#enhSeg").hidden = true;
     E.fromNote = from === "exif" ? "Uploaded photo: time taken from the photo’s details. Check it below." : from === "file" ? "Uploaded photo: no time in the photo’s details, so the file’s date is used. Check it below." : "";
     enhStatus("");
@@ -1261,10 +1305,12 @@ Locate these points as precisely as you can, in pixel coordinates of this image:
 - "subdial_center": if the seconds hand is on a small sub-dial, the pivot of that sub-dial; otherwise null.
 Do not confuse chronograph hands or the hour hand with the minute and seconds hands. A chronograph seconds hand that is stopped at 12 is not the running seconds hand.
 
+Also trace "outline": the outer edge of the whole watch as one polygon of 24 to 60 points in pixel coordinates, going round clockwise. Include the case, bezel, crown, pushers, lugs and the visible strap or bracelet; exclude the surface it lies on and any shadow. Keep the points just on the watch's edge.
+
 Also give your own direct reading of the displayed time, and identify the watch: the brand from the dial or case, and the model or collection name if you can recognise it (for example "Seamaster 300", "Datejust", "Speedmaster Professional"). Use the dial text and design; don't guess a model you aren't fairly sure of.
 
 Reply with JSON only, in exactly this shape:
-{"center":{"x":0,"y":0},"twelve":{"x":0,"y":0},"minute_tip":{"x":0,"y":0},"seconds_tip":{"x":0,"y":0},"subdial_center":null,"reading":{"hours":0,"minutes":0,"seconds":0},"brand":"brand name, or empty string if not visible","model":"model or collection name, or empty string if unsure","watch":"short description such as 'steel dress watch, white dial'","confidence":"high|medium|low","problem":"empty string, or what made it hard (glare, blur, hands overlapping, no seconds hand)"}`;
+{"center":{"x":0,"y":0},"twelve":{"x":0,"y":0},"minute_tip":{"x":0,"y":0},"seconds_tip":{"x":0,"y":0},"subdial_center":null,"outline":[[0,0],[0,0]],"reading":{"hours":0,"minutes":0,"seconds":0},"brand":"brand name, or empty string if not visible","model":"model or collection name, or empty string if unsure","watch":"short description such as 'steel dress watch, white dial'","confidence":"high|medium|low","problem":"empty string, or what made it hard (glare, blur, hands overlapping, no seconds hand)"}`;
       const res = await sampler.json(prompt, { images: im.blob, modelTier: "complex", signal: ctl.signal, cache: false });
       if (ctl !== aiCtl || forBlob !== E.blob) return;
       const pt = (q) => q && Number.isFinite(+q.x) && Number.isFinite(+q.y) ? { x: +q.x / im.k, y: +q.y / im.k } : null;
@@ -1279,6 +1325,8 @@ Reply with JSON only, in exactly this shape:
       }
       if (!c || !top || !m) { scheduleEnhance(); aiState("warn", "The AI couldn’t find the hands", (res.problem ? String(res.problem).slice(0, 160) + ". " : "") + "Tap the points yourself."); return; }
       E.pts = { c, top, m }; if (sec) E.pts.s = sec;
+      E.outline = Array.isArray(res.outline) ? res.outline.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => ({ x: +q[0] / im.k, y: +q[1] / im.k })) : null;
+      if (E.outline && E.outline.length < 8) E.outline = null;
       scheduleEnhance();
       $("#smallSec").checked = !!sc; if (sc) E.pts.sc = sc;
       E.step = firstMissing(); renderSteps(); drawOverlay(); compute();
@@ -1317,18 +1365,18 @@ Reply with JSON only, in exactly this shape:
   function enhStatus(t) { $("#enhStatus").textContent = [E.fromNote, t].filter(Boolean).join(" "); }
   async function scheduleEnhance() {
     const p = E.pts; if (!E.blob) return;
-    const key = p.c && p.top ? [p.c.x, p.c.y, p.top.x, p.top.y].map(Math.round).join(",") : "none";
+    const key = (p.c && p.top ? [p.c.x, p.c.y, p.top.x, p.top.y].map(Math.round).join(",") : "none") + (E.outline ? ":o" + E.outline.length : "");
     if (key === E.enhKey) return;
     E.enhKey = key; const run = ++E.enhRun, forBlob = E.blob;
     enhStatus("Enhancing the photo…");
     try {
-      const out = await enhancePhoto(forBlob, p.c && p.top ? p : null);
+      const out = await enhancePhoto(forBlob, p.c && p.top ? p : null, E.outline);
       if (run !== E.enhRun || forBlob !== E.blob) return;
       if (E.enh && E.enh.url) URL.revokeObjectURL(E.enh.url);
       E.enh = { blob: out.blob, url: URL.createObjectURL(out.blob), whitened: out.whitened };
       $("#enhSeg").hidden = false; setView("enh");
-      enhStatus(out.whitened ? "Enhanced: white background, glare reduced, sharpened. Nothing is moved or redrawn."
-        : p.c && p.top ? "Enhanced: glare reduced and sharpened. The background was left as it is because the watch couldn’t be separated from the surface; a plain surface works best."
+      enhStatus(out.whitened ? "Background removed: only the watch is kept, on white. Glare reduced and sharpened; nothing on the watch is moved or redrawn."
+        : p.c && p.top ? "Glare reduced and sharpened. The background couldn’t be removed because the watch couldn’t be separated from the surface; a plain surface works best."
         : "Enhanced: glare reduced and sharpened. The background turns white once the centre and 12 o’clock are placed.");
     } catch { if (run === E.enhRun) enhStatus("The photo couldn’t be enhanced; the original will be saved."); }
   }
