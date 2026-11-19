@@ -673,7 +673,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     $("#vTitle").textContent = fmtWhen(r.t);
     const hasOrig = !!(r.origId || r.hasOrig);
     $("#vSeg").hidden = !hasOrig;
-    $("#vNote").textContent = hasOrig ? "Enhanced: background removed so only the watch is shown on white, glare reduced and sharpened. Nothing on the watch is moved, added or removed; the original is kept." : "";
+    $("#vNote").textContent = hasOrig ? "Enhanced: background blurred, glare reduced and sharpened. Nothing on the watch is moved, added or removed; the original is kept." : "";
     showViewer("enh");
   }
   $("#vEnh").onclick = () => showViewer("enh");
@@ -943,7 +943,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   // ---------- photo enhancement ----------
   // Tonal changes only. Every pixel stays where it is, so the hands and dial details are never moved,
   // added or removed: levels, highlight (glare) compression, local contrast and sharpening, plus turning
-  // the surface around the watch white. The dial and bezel (worked out from the centre and 12 o'clock
+  // blurring the surface around the watch. The dial and bezel (worked out from the centre and 12 o'clock
   // points) are protected from the background step.
   function boxBlur(src, W, H, r) {
     const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
@@ -1110,7 +1110,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
           const wc = document.createElement("canvas"); wc.width = W; wc.height = H;
           const wg = wc.getContext("2d");
           wg.filter = `blur(${Math.max(1, Math.round(W / 500))}px)`; wg.imageSmoothingEnabled = true; wg.drawImage(mask, 0, 0, W, H);
-          wg.filter = "none"; wg.globalCompositeOperation = "source-in"; wg.fillStyle = "#ffffff"; wg.fillRect(0, 0, W, H);
+          // Background areas take a strongly blurred copy of the background alone, so no colour from the watch
+          // bleeds into it as a halo; the watch keeps its own sharp pixels
+          const fc = document.createElement("canvas"); fc.width = W; fc.height = H;
+          const fg2 = fc.getContext("2d"); fg2.drawImage(wc, 0, 0); fg2.globalCompositeOperation = "source-in"; fg2.drawImage(c, 0, 0);
+          const bc = document.createElement("canvas"); bc.width = W; bc.height = H;
+          const bgc = bc.getContext("2d"); bgc.filter = `blur(${Math.max(6, Math.round(Math.max(W, H) / 70))}px)`;
+          for (let n = 0; n < 5; n++) bgc.drawImage(fc, 0, 0);   // repeated draws fill the gap where the watch was cut out
+          wg.filter = "none"; wg.globalCompositeOperation = "source-in"; wg.drawImage(bc, 0, 0);
           g.drawImage(wc, 0, 0); whitened = true;
         }
       }
@@ -1375,9 +1382,9 @@ Reply with JSON only, in exactly this shape:
       if (E.enh && E.enh.url) URL.revokeObjectURL(E.enh.url);
       E.enh = { blob: out.blob, url: URL.createObjectURL(out.blob), whitened: out.whitened };
       $("#enhSeg").hidden = false; setView("enh");
-      enhStatus(out.whitened ? "Background removed: only the watch is kept, on white. Glare reduced and sharpened; nothing on the watch is moved or redrawn."
-        : p.c && p.top ? "Glare reduced and sharpened. The background couldn’t be removed because the watch couldn’t be separated from the surface; a plain surface works best."
-        : "Enhanced: glare reduced and sharpened. The background turns white once the centre and 12 o’clock are placed.");
+      enhStatus(out.whitened ? "Background blurred so the watch stands out. Glare reduced and sharpened; nothing on the watch is moved or redrawn."
+        : p.c && p.top ? "Glare reduced and sharpened. The background couldn’t be blurred because the watch couldn’t be separated from the surface; a plain surface works best."
+        : "Enhanced: glare reduced and sharpened. The background is blurred once the centre and 12 o’clock are placed.");
     } catch { if (run === E.enhRun) enhStatus("The photo couldn’t be enhanced; the original will be saved."); }
   }
 
