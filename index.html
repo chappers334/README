@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2346a8">
+</head>
+<body>
+<title>Watch Rate Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow instrument column, summary dial on top, log below; full-screen bench view for reading a photo */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --ink: #141a24; --muted: #5d6878; --line: #dde2ea;
+  --accent: #2346a8; --accent-ink: #ffffff; --accent-soft: #e4eaf8;
+  --gain: #1d7a4f; --loss: #b3322b; --warn: #a66a00;
+  --hand-min: #2346a8; --hand-sec: #d23c2f; --hand-ref: #1d7a4f;
+  --font-ui: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1117; --surface: #171b24; --ink: #e8ecf2; --muted: #9aa5b5; --line: #2a303c;
+  --accent: #7f9cf0; --accent-ink: #0e1117; --accent-soft: #1f2840;
+  --gain: #4cc38a; --loss: #f07167; --warn: #e3a72f;
+  --hand-min: #8fa8ff; --hand-sec: #ff6b5e; --hand-ref: #4cc38a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1117; --surface: #171b24; --ink: #e8ecf2; --muted: #9aa5b5; --line: #2a303c;
+  --accent: #7f9cf0; --accent-ink: #0e1117; --accent-soft: #1f2840;
+  --gain: #4cc38a; --loss: #f07167; --warn: #e3a72f;
+  --hand-min: #8fa8ff; --hand-sec: #ff6b5e; --hand-ref: #4cc38a; color-scheme: dark }
+
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--font-ui); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 18px 110px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+small, .small { font-size: 0.82rem; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.status { font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.status.cloud i { background: var(--gain); }
+.status.local i { background: var(--warn); }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-weight: 500; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip.add { color: var(--accent); border-style: dashed; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.rate { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: center; }
+.rate .dial { grid-row: span 2; width: 92px; height: 92px; }
+.rate .big { font-family: var(--font-num); font-size: 2.3rem; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+.rate .big small { font-size: 0.95rem; font-weight: 400; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+.rate .verdict { font-weight: 600; font-size: 1.02rem; }
+.gain { color: var(--gain); } .loss { color: var(--loss); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
+.stats div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stats b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 600; }
+.stats span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid currentColor; width: fit-content; }
+
+.chart { width: 100%; height: auto; display: block; }
+.chart text { font-family: var(--font-num); font-size: 17px; fill: var(--muted); }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart .fit { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5; fill: none; }
+.chart .path { stroke: var(--ink); stroke-width: 2; fill: none; }
+.chart .pt { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.chart .pt.last { fill: var(--accent); stroke: var(--accent); }
+
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.log li { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.log li:first-child { border-top: 0; }
+.log li.old { opacity: 0.5; }
+.thumb { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: var(--accent-soft); display: block; }
+.log .main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.log .when { font-weight: 600; }
+.log .sub { font-size: 0.82rem; color: var(--muted); }
+.log .off { font-family: var(--font-num); font-weight: 600; text-align: right; }
+.log .rowbtns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 14px; font-weight: 600; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--loss); }
+.btn.tiny { padding: 4px 9px; font-size: 0.78rem; font-weight: 500; border-radius: 8px; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 5;
+  display: inline-flex; align-items: center; gap: 10px; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
+  padding: 15px 26px; font-weight: 700; font-size: 1.02rem; box-shadow: 0 8px 24px rgba(20, 30, 60, 0.28); white-space: nowrap; }
+.fab svg { width: 22px; height: 22px; }
+
+.empty { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.input { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box; min-width: 0; }
+.how { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 0.9rem; }
+.how b { color: var(--ink); font-weight: 600; }
+.note { font-size: 0.82rem; color: var(--muted); }
+.err { color: var(--loss); font-size: 0.86rem; }
+
+/* Bench view */
+#editor { position: fixed; inset: 0; z-index: 20; background: var(--bg); overflow-y: auto; }
+#editor .wrap { padding-block: calc(14px + env(safe-area-inset-top, 0px)) 40px; gap: 14px; }
+.edhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stagebox { display: flex; justify-content: center; }
+#stage { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 12px; max-width: 100%; }
+#photo { display: block; width: 100%; height: auto; border-radius: 12px; pointer-events: none; }
+#overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#loupe { position: absolute; width: 132px; height: 132px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  background-repeat: no-repeat; pointer-events: none; z-index: 3; }
+#loupe::before, #loupe::after { content: ""; position: absolute; background: var(--hand-sec); }
+#loupe::before { left: 50%; top: 18%; bottom: 18%; width: 1px; }
+#loupe::after { top: 50%; left: 18%; right: 18%; height: 1px; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.step { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 0.84rem; font-weight: 500; display: inline-flex; gap: 6px; align-items: center; }
+.step .dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--muted); box-sizing: border-box; }
+.step.done .dot { background: var(--gain); border-color: var(--gain); }
+.step.active { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.prompt { font-size: 1.05rem; font-weight: 600; }
+.timegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.result { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: var(--accent-soft); }
+.result .big { font-family: var(--font-num); font-size: 1.6rem; font-weight: 600; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.nudge { display: flex; gap: 6px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-weight: 500; z-index: 30; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) { .fab { transition: transform .15s; } .fab:active { transform: translateX(-50%) scale(0.97); } }
+</style>
+
+<div class="wrap" id="home">
+  <header class="top">
+    <h1>Watch Rate Log</h1>
+    <div class="status" id="status"><i></i><span>Connecting…</span></div>
+  </header>
+
+  <nav class="chips" id="watchChips" aria-label="Watches"></nav>
+
+  <section id="newWatch" class="panel empty" hidden>
+    <h2>Add a watch</h2>
+    <div class="field">
+      <label for="watchName">Watch name or job number</label>
+      <input class="input" id="watchName" placeholder="e.g. Omega 30T2 — job 1142" maxlength="60">
+    </div>
+    <div class="row">
+      <button class="btn primary" id="createWatch">Add watch</button>
+      <button class="btn ghost" id="cancelWatch" hidden>Cancel</button>
+    </div>
+    <ol class="how">
+      <li><b>Set the watch</b> roughly to the right time (within a few minutes) and keep it running.</li>
+      <li><b>Once a day</b>, tap <b>Photograph watch</b> and take a sharp, square-on photo of the dial with the seconds hand visible.</li>
+      <li><b>Tap the hands</b> on the photo. The app compares the watch with your phone’s network-synced clock at the moment of the photo.</li>
+      <li>After a week you have the average <b>seconds per day</b> and the total gained or lost.</li>
+    </ol>
+  </section>
+
+  <section id="summary" class="panel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 id="sumTitle">Rate</h2>
+      <button class="btn tiny ghost" id="watchMenuBtn">Watch options</button>
+    </div>
+    <div id="watchMenu" class="row" hidden>
+      <button class="btn tiny" id="restartRun">Start a new test from now</button>
+      <button class="btn tiny danger" id="deleteWatch">Delete watch</button>
+    </div>
+    <div class="rate">
+      <svg class="dial" id="dial" viewBox="0 0 100 100" aria-hidden="true"></svg>
+      <div class="big" id="rateBig">—</div>
+      <div class="verdict" id="rateVerdict">Take your first photo to start.</div>
+    </div>
+    <div id="cosc"></div>
+    <div class="stats">
+      <div><b id="stWeek">—</b><span>Per 7 days</span></div>
+      <div><b id="stChange">—</b><span>Measured</span></div>
+      <div><b id="stDays">—</b><span>Days / photos</span></div>
+    </div>
+  </section>
+
+  <section id="chartPanel" class="panel" hidden>
+    <h2>Watch error vs phone clock (seconds)</h2>
+    <div style="overflow-x:auto"><svg class="chart" id="chart" viewBox="0 0 600 260" role="img" aria-label="Watch error over the test"></svg></div>
+    <p class="note" id="chartNote"></p>
+  </section>
+
+  <section id="logPanel" class="panel" hidden>
+    <h2>Daily readings</h2>
+    <ul class="log" id="log"></ul>
+  </section>
+
+  <p class="note" id="storageNote"></p>
+</div>
+
+<input type="file" id="camera" accept="image/*" capture="environment" hidden>
+<button class="fab" id="fab" hidden>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/></svg>
+  Photograph watch
+</button>
+
+<section id="editor" hidden>
+  <div class="wrap">
+    <div class="edhead">
+      <button class="btn ghost" id="edCancel">Cancel</button>
+      <strong id="edWatch"></strong>
+      <button class="btn primary" id="edSave" disabled>Save</button>
+    </div>
+
+    <div class="prompt" id="edPrompt">Tap the centre of the hands</div>
+    <div class="steps" id="edSteps"></div>
+    <div class="stagebox"><div id="stage"><img id="photo" alt="Photo of the watch dial"><svg id="overlay"></svg><div id="loupe" hidden></div></div></div>
+    <p class="note">Press and drag to use the magnifier, then lift your finger to place the point. Tap a step above to redo it.</p>
+    <label class="toggle"><input type="checkbox" id="smallSec"> Seconds hand is on a small sub-dial</label>
+
+    <div class="panel">
+      <h2>Reading</h2>
+      <div class="timegrid">
+        <div class="field"><label for="fMin">Watch minutes</label><input class="input num" id="fMin" type="number" inputmode="numeric" min="0" max="59" step="1"></div>
+        <div class="field"><label for="fSec">Watch seconds</label>
+          <input class="input num" id="fSec" type="number" inputmode="decimal" min="0" max="59.9" step="0.5">
+        </div>
+      </div>
+      <div class="nudge"><button class="btn tiny" data-n="-1">−1 s</button><button class="btn tiny" data-n="-0.5">−½ s</button><button class="btn tiny" data-n="0.5">+½ s</button><button class="btn tiny" data-n="1">+1 s</button></div>
+      <div class="field">
+        <label for="fRef">Phone time when photo was taken</label>
+        <input class="input num" id="fRef" type="datetime-local" step="1">
+      </div>
+      <div class="result" id="edResult"><span class="muted small">Watch error</span><span class="big">—</span><span class="small muted">Place the points or type the minutes and seconds.</span></div>
+      <p class="err" id="edErr" hidden></p>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const DAY = 86400000;
+  const S = { mode: "connecting", watches: [], readings: [], sel: null, adding: false, arm: null, menu: false };
+  let store = null;
+
+  // ---------- helpers ----------
+  const pad = (n, w = 2) => String(Math.floor(Math.abs(n))).padStart(w, "0");
+  const sgn = (v, d = 1) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(d);
+  const fmtWhen = (t) => new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fmtClock = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  const toLocalInput = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  function toast(msg) { const el = $("#toast"); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 2600); }
+
+  // Watch error in seconds: watch minutes/seconds against the phone clock, nearest within ±30 min
+  function offsetFor(t, min, sec) {
+    const d = new Date(t);
+    const ref = d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000;
+    let o = min * 60 + sec - ref;
+    return (((o + 1800) % 3600) + 3600) % 3600 - 1800;
+  }
+  function angleCW(c, ref, p) {
+    const rx = ref.x - c.x, ry = ref.y - c.y, vx = p.x - c.x, vy = p.y - c.y;
+    const a = (Math.atan2(rx * vy - ry * vx, rx * vx + ry * vy) * 180) / Math.PI;
+    return (a + 360) % 360;
+  }
+  function analyse(rs) {
+    const out = { n: rs.length };
+    if (rs.length < 2) return out;
+    const t0 = rs[0].t, xs = rs.map((r) => (r.t - t0) / DAY), ys = rs.map((r) => r.offset);
+    const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
+    let sxx = 0, sxy = 0;
+    xs.forEach((x, i) => { sxx += (x - mx) ** 2; sxy += (x - mx) * (ys[i] - my); });
+    if (sxx < 1e-9) return out;
+    const rate = sxy / sxx;
+    return { n, xs, ys, days: xs[n - 1], change: ys[n - 1] - ys[0], rate, week: rate * 7, b: my - rate * mx };
+  }
+
+  // ---------- image prep ----------
+  async function prepImage(file, max = 2000) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      return await new Promise((res) => c.toBlob(res, "image/jpeg", 0.86));
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  // ---------- local store (this phone only) ----------
+  function localStore() {
+    const KEY = "watchRateLog.v1";
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { watches: [], readings: [] }; } catch { return { watches: [], readings: [] }; } };
+    const save = (d) => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch { toast("Couldn’t save on this phone. Storage may be full or blocked."); } };
+    let dbp = null;
+    const idb = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open("watchRateLog", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("photos");
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const tx = async (mode, fn) => { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("photos", mode); const q = fn(t.objectStore("photos")); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
+    const urls = {};
+    const emit = () => { const d = load(); S.watches = d.watches; S.readings = d.readings; render(); };
+    return {
+      kind: "local",
+      start() { emit(); },
+      async addWatch(name) { const d = load(); const w = { id: uid(), name, created: Date.now(), runStart: 0 }; d.watches.push(w); save(d); emit(); return w.id; },
+      async updateWatch(id, patch) { const d = load(); Object.assign(d.watches.find((w) => w.id === id) || {}, patch); save(d); emit(); },
+      async deleteWatch(id) { const d = load(); const gone = d.readings.filter((r) => r.watchId === id); d.watches = d.watches.filter((w) => w.id !== id); d.readings = d.readings.filter((r) => r.watchId !== id); save(d); for (const r of gone) try { await tx("readwrite", (s) => s.delete(r.id)); } catch {} emit(); },
+      async addReading(r, blob) { r.id = uid(); try { if (blob) { await tx("readwrite", (s) => s.put(blob, r.id)); r.photo = "local"; } } catch {} const d = load(); d.readings.push(r); save(d); emit(); },
+      async deleteReading(r) { const d = load(); d.readings = d.readings.filter((x) => x.id !== r.id); save(d); try { await tx("readwrite", (s) => s.delete(r.id)); } catch {} emit(); },
+      async photoSrc(r) { if (!r.photo) return null; if (urls[r.id]) return urls[r.id]; try { const b = await tx("readonly", (s) => s.get(r.id)); return b ? (urls[r.id] = URL.createObjectURL(b)) : null; } catch { return null; } },
+    };
+  }
+
+  // ---------- cloud store (claude.ai: private to you, follows your account) ----------
+  async function cloudStore() {
+    if (!window.claude || typeof window.claude.use !== "function") return null;
+    const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+    if (!db || !user) return null;
+    const id = await user.id();
+    if (!id) return null;
+    const assets = await window.claude.use("assets");
+    const local = localStore();
+    const base = "data/users/" + id;
+    const W = db.collection(base + "/watches"), R = db.collection(base + "/readings");
+    const clean = (o) => { const c = {}; for (const k in o) if (o[k] !== undefined && k !== "id") c[k] = o[k]; return c; };
+    return {
+      kind: "cloud", assets: !!assets,
+      start() {
+        let got = 0;
+        const timer = setTimeout(() => { if (got < 2) $("#storageNote").textContent = "Still loading your readings… check your connection."; }, 10000);
+        const done = () => { if (++got === 2) { clearTimeout(timer); $("#storageNote").textContent = ""; } };
+        const fail = (e) => { clearTimeout(timer); $("#storageNote").textContent = "Couldn’t load saved readings (" + (e && e.code || "error") + "). Reload to try again."; };
+        let fw = false, fr = false;
+        W.onSnapshot((s) => { S.watches = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fw) { fw = true; done(); } render(); }, fail);
+        R.onSnapshot((s) => { S.readings = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fr) { fr = true; done(); } render(); }, fail);
+      },
+      async addWatch(name) { const ref = await W.add({ name, created: Date.now(), runStart: 0 }); return ref.id; },
+      async updateWatch(wid, patch) { await W.doc(wid).update(patch); },
+      async deleteWatch(wid) {
+        for (const r of S.readings.filter((r) => r.watchId === wid)) await this.deleteReading(r);
+        await W.doc(wid).delete();
+      },
+      async addReading(r, blob) {
+        if (blob && assets) { try { const up = await assets.upload(blob, { contentType: "image/jpeg" }); r.photoId = up.id; } catch { toast("Photo couldn’t be uploaded; the reading is saved without it."); } }
+        await R.add(clean(r));
+      },
+      async deleteReading(r) {
+        await R.doc(r.id).delete();
+        if (r.photoId && assets) { try { await assets.delete(r.photoId); } catch {} }
+      },
+      async photoSrc(r) { return r.photoId ? "/_blob/" + r.photoId : local.photoSrc(r); },
+    };
+  }
+
+  // ---------- rendering ----------
+  const cur = () => S.watches.find((w) => w.id === S.sel);
+  function render() {
+    S.watches.sort((a, b) => a.created - b.created);
+    if (!cur() && S.watches.length) S.sel = S.watches[0].id;
+    if (!S.watches.length) S.sel = null;
+    try { if (S.sel) localStorage.setItem("watchRateLog.sel", S.sel); } catch {}
+
+    const st = $("#status");
+    st.className = "status " + (store ? store.kind : "");
+    st.querySelector("span").textContent = !store ? "Connecting…" : store.kind === "cloud" ? "Saved to your account" : "Saved on this phone";
+
+    const chips = $("#watchChips");
+    chips.replaceChildren(...S.watches.map((w) => {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = w.name;
+      b.setAttribute("aria-pressed", String(w.id === S.sel));
+      b.onclick = () => { S.sel = w.id; S.adding = false; S.menu = false; render(); };
+      return b;
+    }));
+    if (S.watches.length) { const a = document.createElement("button"); a.className = "chip add"; a.textContent = "+ Watch"; a.onclick = () => { S.adding = true; render(); $("#watchName").focus(); }; chips.append(a); }
+    chips.hidden = !S.watches.length;
+
+    const showNew = !!store && (!S.watches.length || S.adding);
+    $("#newWatch").hidden = !showNew;
+    $("#cancelWatch").hidden = !S.watches.length;
+    const w = cur();
+    const hasW = !!w && !showNew;
+    $("#summary").hidden = !hasW;
+    $("#fab").hidden = !hasW;
+    $("#watchMenu").hidden = !S.menu;
+    if (!hasW) { $("#chartPanel").hidden = $("#logPanel").hidden = true; return; }
+
+    const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
+    const run = all.filter((r) => r.t >= (w.runStart || 0));
+    const A = analyse(run);
+    $("#sumTitle").textContent = w.name;
+
+    const big = $("#rateBig"), ver = $("#rateVerdict");
+    if (A.rate === undefined) {
+      big.innerHTML = "—";
+      ver.className = "verdict";
+      ver.textContent = run.length === 0 ? "Take your first photo to start the test." : "First reading saved. Take the next photo tomorrow.";
+      $("#stWeek").textContent = "—"; $("#stChange").textContent = run.length ? sgn(run[0].offset) + " s" : "—";
+      $("#stDays").textContent = run.length ? "0 / " + run.length : "—";
+      $("#cosc").innerHTML = "";
+    } else {
+      big.innerHTML = `${sgn(A.rate)}<small>s/day</small>`;
+      const losing = A.rate < 0;
+      ver.className = "verdict " + (Math.abs(A.rate) < 0.05 ? "" : losing ? "loss" : "gain");
+      ver.textContent = Math.abs(A.rate) < 0.05 ? "Keeping time" : `${losing ? "Losing" : "Gaining"} ${Math.abs(A.week).toFixed(1)} s a week`;
+      $("#stWeek").textContent = sgn(A.week) + " s";
+      $("#stChange").textContent = sgn(A.change) + " s";
+      $("#stDays").textContent = A.days.toFixed(1) + " / " + run.length;
+      const ok = A.rate >= -4 && A.rate <= 6;
+      $("#cosc").innerHTML = `<span class="pill ${ok ? "gain" : "loss"}">${ok ? "Within" : "Outside"} chronometer limits (−4 / +6 s/day)</span>`;
+    }
+    drawDial(A.rate);
+    drawChart(run, A);
+    $("#chartPanel").hidden = run.length < 1;
+    $("#chartNote").textContent = A.rate === undefined ? "The line appears after the second photo." :
+      `Dashed line: best-fit rate over ${A.days.toFixed(1)} days. ${run.length < 7 ? `Keep going: ${Math.max(0, 7 - Math.ceil(A.days))} more day${7 - Math.ceil(A.days) === 1 ? "" : "s"} to complete a week.` : "A full week of readings."}`;
+
+    // log
+    $("#logPanel").hidden = !all.length;
+    const ul = $("#log"); ul.replaceChildren();
+    const rev = [...all].reverse();
+    rev.forEach((r) => {
+      const i = all.indexOf(r), prev = all[i - 1];
+      const li = document.createElement("li");
+      if (r.t < (w.runStart || 0)) li.className = "old";
+      const img = document.createElement("img"); img.className = "thumb"; img.alt = "";
+      store.photoSrc(r).then((src) => { if (src) img.src = src; });
+      let sub = `Watch ${fmtClock(r.t + r.offset * 1000)} · phone ${fmtClock(r.t)}`;
+      let delta = "";
+      if (prev && r.t >= (w.runStart || 0) && prev.t >= (w.runStart || 0)) {
+        const dd = (r.t - prev.t) / DAY;
+        if (dd > 0.01) delta = `${sgn((r.offset - prev.offset) / dd)} s/day since last`;
+      } else if (r.t < (w.runStart || 0)) delta = "Before current test";
+      const main = document.createElement("div"); main.className = "main";
+      main.innerHTML = `<span class="when"></span><span class="sub num"></span><span class="sub"></span>`;
+      main.children[0].textContent = fmtWhen(r.t); main.children[1].textContent = sub; main.children[2].textContent = delta;
+      const right = document.createElement("div");
+      right.innerHTML = `<div class="off ${r.offset < 0 ? "loss" : r.offset > 0 ? "gain" : ""}">${sgn(r.offset)} s</div>`;
+      const btns = document.createElement("div"); btns.className = "rowbtns";
+      const del = document.createElement("button"); del.className = "btn tiny ghost danger";
+      del.textContent = S.arm === r.id ? "Confirm delete" : "Delete";
+      del.onclick = async () => { if (S.arm !== r.id) { S.arm = r.id; render(); return; } S.arm = null; try { await store.deleteReading(r); toast("Reading deleted"); } catch (e) { toast("Couldn’t delete: " + (e.code || e.message)); } };
+      btns.append(del); right.append(btns);
+      li.append(img, main, right); ul.append(li);
+    });
+  }
+
+  function drawDial(rate) {
+    const svg = $("#dial");
+    const ticks = Array.from({ length: 21 }, (_, i) => {
+      const v = -10 + i, a = (v / 10) * 120 - 90, r1 = 44, r2 = v % 5 === 0 ? 36 : 40;
+      const x = (r) => 50 + r * Math.cos((a * Math.PI) / 180), y = (r) => 50 + r * Math.sin((a * Math.PI) / 180);
+      return `<line x1="${x(r1)}" y1="${y(r1)}" x2="${x(r2)}" y2="${y(r2)}" stroke="var(--${v >= -4 && v <= 6 ? "ink" : "muted"})" stroke-width="${v % 5 === 0 ? 2 : 1}"/>`;
+    }).join("");
+    const v = rate === undefined ? 0 : Math.max(-10, Math.min(10, rate));
+    const a = (v / 10) * 120 - 90;
+    const hx = 50 + 38 * Math.cos((a * Math.PI) / 180), hy = 50 + 38 * Math.sin((a * Math.PI) / 180);
+    svg.innerHTML = `<circle cx="50" cy="50" r="48" fill="var(--bg)" stroke="var(--line)"/>${ticks}
+      <text x="50" y="74" text-anchor="middle" font-size="9" fill="var(--muted)" font-family="var(--font-num)">s/day</text>
+      ${rate === undefined ? "" : `<line x1="50" y1="50" x2="${hx}" y2="${hy}" stroke="var(--hand-sec)" stroke-width="2.5" stroke-linecap="round"/>`}
+      <circle cx="50" cy="50" r="4" fill="var(--ink)"/>`;
+  }
+
+  function niceStep(span) { const raw = span / 4, p = 10 ** Math.floor(Math.log10(raw)); return [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw); }
+  function drawChart(run, A) {
+    const svg = $("#chart"); if (!run.length) { svg.innerHTML = ""; return; }
+    const W = 600, H = 260, L = 62, Rm = 20, T = 22, B = 40;
+    const t0 = run[0].t, xs = run.map((r) => (r.t - t0) / DAY), ys = run.map((r) => r.offset);
+    const xMax = Math.max(7, Math.ceil(xs[xs.length - 1]));
+    let lo = Math.min(0, ...ys), hi = Math.max(0, ...ys);
+    if (A.rate !== undefined) { lo = Math.min(lo, A.b + A.rate * xMax); hi = Math.max(hi, A.b + A.rate * xMax); }
+    if (hi - lo < 4) { const m = (hi + lo) / 2; lo = m - 2; hi = m + 2; }
+    const step = niceStep(hi - lo); lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    const X = (x) => L + (x / xMax) * (W - L - Rm), Y = (y) => T + ((hi - y) / (hi - lo)) * (H - T - B);
+    let g = "";
+    for (let y = lo; y <= hi + 1e-9; y += step) g += `<line class="grid" x1="${L}" x2="${W - Rm}" y1="${Y(y)}" y2="${Y(y)}"/><text x="${L - 8}" y="${Y(y) + 6}" text-anchor="end">${y > 0 ? "+" : y < 0 ? "−" : ""}${+Math.abs(y).toFixed(2)}</text>`;
+    const xstep = xMax <= 14 ? 1 : Math.ceil(xMax / 10);
+    for (let x = 0; x <= xMax; x += xstep) g += `<text x="${X(x)}" y="${H - 10}" text-anchor="middle">${x === 0 ? "Day 0" : x}</text>`;
+    g += `<line class="zero" x1="${L}" x2="${W - Rm}" y1="${Y(0)}" y2="${Y(0)}"/>`;
+    if (A.rate !== undefined) g += `<line class="fit" x1="${X(0)}" y1="${Y(A.b)}" x2="${X(xMax)}" y2="${Y(A.b + A.rate * xMax)}"/>`;
+    g += `<polyline class="path" points="${xs.map((x, i) => `${X(x)},${Y(ys[i])}`).join(" ")}"/>`;
+    g += xs.map((x, i) => `<circle class="pt${i === xs.length - 1 ? " last" : ""}" cx="${X(x)}" cy="${Y(ys[i])}" r="${i === xs.length - 1 ? 5.5 : 4}"/>`).join("");
+    const lx = X(xs[xs.length - 1]), ly = Y(ys[ys.length - 1]);
+    g += `<text x="${Math.min(lx, W - Rm - 4)}" y="${ly - 10}" text-anchor="${lx > W - 80 ? "end" : "middle"}" style="fill:var(--ink);font-weight:600">${sgn(ys[ys.length - 1])} s</text>`;
+    svg.innerHTML = g;
+  }
+
+  // ---------- watch management ----------
+  $("#createWatch").onclick = async () => {
+    const name = $("#watchName").value.trim() || "Watch " + (S.watches.length + 1);
+    $("#createWatch").disabled = true;
+    try { const id = await store.addWatch(name); S.sel = id; S.adding = false; $("#watchName").value = ""; toast("Added " + name); }
+    catch (e) { toast("Couldn’t add the watch: " + (e.code || e.message)); }
+    $("#createWatch").disabled = false; render();
+  };
+  $("#watchName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#createWatch").click(); });
+  $("#cancelWatch").onclick = () => { S.adding = false; render(); };
+  $("#watchMenuBtn").onclick = () => { S.menu = !S.menu; S.arm = null; render(); };
+  $("#restartRun").onclick = async () => {
+    if (S.arm !== "restart") { S.arm = "restart"; $("#restartRun").textContent = "Confirm: start new test"; return; }
+    S.arm = null; $("#restartRun").textContent = "Start a new test from now";
+    await store.updateWatch(S.sel, { runStart: Date.now() }); S.menu = false; toast("New test started. Earlier readings are kept but not counted."); render();
+  };
+  $("#deleteWatch").onclick = async () => {
+    if (S.arm !== "delwatch") { S.arm = "delwatch"; $("#deleteWatch").textContent = "Confirm: delete watch and its photos"; return; }
+    S.arm = null; $("#deleteWatch").textContent = "Delete watch";
+    const w = cur(); S.menu = false;
+    try { await store.deleteWatch(w.id); toast("Deleted " + w.name); } catch (e) { toast("Couldn’t delete: " + (e.code || e.message)); }
+    S.sel = null; render();
+  };
+
+  // ---------- bench (reading a photo) ----------
+  const E = { blob: null, url: null, t: 0, pts: {}, step: 0, method: "manual" };
+  const stepDefs = () => [
+    { k: "c", label: "Centre", prompt: "Tap the centre of the hands (the pivot)" },
+    { k: "top", label: "12 o’clock", prompt: "Tap the 12 o’clock marker" },
+    { k: "m", label: "Minute hand", prompt: "Tap the tip of the minute hand" },
+    ...($("#smallSec").checked ? [{ k: "sc", label: "Sub-dial centre", prompt: "Tap the centre of the small seconds sub-dial" }] : []),
+    { k: "s", label: "Seconds hand", prompt: "Tap the tip of the seconds hand" },
+  ];
+  const colors = { c: "--ink", top: "--hand-ref", m: "--hand-min", sc: "--ink", s: "--hand-sec" };
+
+  $("#fab").onclick = () => { $("#camera").value = ""; $("#camera").click(); };
+  $("#camera").onchange = async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const t = f.lastModified && Math.abs(Date.now() - f.lastModified) < 400 * DAY ? f.lastModified : Date.now();
+    let blob;
+    try { blob = await prepImage(f); } catch { toast("That photo couldn’t be opened. Try again."); return; }
+    openEditor(blob, t);
+  };
+
+  function openEditor(blob, t) {
+    E.blob = blob; if (E.url) URL.revokeObjectURL(E.url); E.url = URL.createObjectURL(blob);
+    E.t = t; E.pts = {}; E.step = 0; E.method = "manual";
+    $("#fMin").value = ""; $("#fSec").value = ""; $("#fRef").value = toLocalInput(t);
+    $("#edErr").hidden = true; $("#edWatch").textContent = cur().name;
+    const img = $("#photo");
+    img.onload = () => {
+      const ar = img.naturalWidth / img.naturalHeight;
+      $("#stage").style.width = `min(100%, ${Math.round(62 * ar)}vh)`;
+      $("#overlay").setAttribute("viewBox", `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+      drawOverlay();
+    };
+    img.src = E.url;
+    $("#loupe").style.backgroundImage = `url("${E.url}")`;
+    $("#editor").hidden = false; $("#editor").scrollTop = 0;
+    document.body.style.overflow = "hidden";
+    renderSteps(); updateResult();
+  }
+  function closeEditor() { $("#editor").hidden = true; document.body.style.overflow = ""; }
+  $("#edCancel").onclick = closeEditor;
+  $("#smallSec").onchange = () => { delete E.pts.sc; E.step = firstMissing(); renderSteps(); drawOverlay(); compute(); };
+
+  const firstMissing = () => { const d = stepDefs(); const i = d.findIndex((s) => !E.pts[s.k]); return i < 0 ? d.length : i; };
+  function renderSteps() {
+    const d = stepDefs(), box = $("#edSteps"); box.replaceChildren();
+    d.forEach((s, i) => {
+      const b = document.createElement("button"); b.className = "step" + (E.pts[s.k] ? " done" : "") + (i === E.step ? " active" : "");
+      b.innerHTML = `<span class="dot"></span>`; b.append(s.label);
+      b.onclick = () => { E.step = i; renderSteps(); };
+      box.append(b);
+    });
+    $("#edPrompt").textContent = E.step < d.length ? d[E.step].prompt : "All points placed. Check the reading below, then save.";
+  }
+  function drawOverlay() {
+    const img = $("#photo"); if (!img.naturalWidth) return;
+    const u = Math.max(img.naturalWidth, img.naturalHeight) / 300, p = E.pts;
+    let g = "";
+    const line = (a, b, col, w) => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(${col})" stroke-width="${w * u}" stroke-linecap="round" opacity="0.9"/>`;
+    if (p.c && p.top) g += line(p.c, p.top, "--hand-ref", 0.8);
+    if (p.c && p.m) g += line(p.c, p.m, "--hand-min", 1.2);
+    const sc = $("#smallSec").checked ? p.sc : p.c;
+    if (sc && p.s) g += line(sc, p.s, "--hand-sec", 0.8);
+    for (const k in p) g += `<circle cx="${p[k].x}" cy="${p[k].y}" r="${2.6 * u}" fill="var(${colors[k]})" stroke="var(--surface)" stroke-width="${0.8 * u}"/>`;
+    $("#overlay").innerHTML = g;
+  }
+
+  // pointer + magnifier
+  const stage = $("#stage"), loupe = $("#loupe"), Z = 3, LS = 132;
+  function locate(e) {
+    const img = $("#photo"), r = img.getBoundingClientRect();
+    const cx = Math.max(0, Math.min(r.width, e.clientX - r.left)), cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
+    return { cx, cy, r, x: (cx / r.width) * img.naturalWidth, y: (cy / r.height) * img.naturalHeight };
+  }
+  function showLoupe(l) {
+    loupe.hidden = false;
+    const above = l.cy > LS + 20;
+    loupe.style.left = Math.max(-LS / 3, Math.min(l.r.width - (2 * LS) / 3, l.cx - LS / 2)) + "px";
+    loupe.style.top = (above ? l.cy - LS - 36 : l.cy + 36) + "px";
+    loupe.style.backgroundSize = `${l.r.width * Z}px ${l.r.height * Z}px`;
+    loupe.style.backgroundPosition = `${-(l.cx * Z - LS / 2 + 3)}px ${-(l.cy * Z - LS / 2 + 3)}px`;
+  }
+  let dragging = false;
+  stage.addEventListener("pointerdown", (e) => { if (E.step >= stepDefs().length) return; dragging = true; stage.setPointerCapture(e.pointerId); showLoupe(locate(e)); e.preventDefault(); });
+  stage.addEventListener("pointermove", (e) => { if (dragging) showLoupe(locate(e)); });
+  stage.addEventListener("pointerup", (e) => {
+    if (!dragging) return; dragging = false; loupe.hidden = true;
+    const l = locate(e), d = stepDefs();
+    E.pts[d[E.step].k] = { x: l.x, y: l.y };
+    E.step = firstMissing(); renderSteps(); drawOverlay(); compute();
+  });
+  stage.addEventListener("pointercancel", () => { dragging = false; loupe.hidden = true; });
+
+  function compute() {
+    const p = E.pts, small = $("#smallSec").checked;
+    if (!(p.c && p.top && p.m && p.s && (!small || p.sc))) return;
+    const sc = small ? p.sc : p.c;
+    const secRef = { x: sc.x + (p.top.x - p.c.x), y: sc.y + (p.top.y - p.c.y) };
+    let s = Math.round((angleCW(sc, secRef, p.s) / 6) * 2) / 2; if (s >= 60) s -= 60;
+    const mFloat = angleCW(p.c, p.top, p.m) / 6;
+    const m = (((Math.round(mFloat - s / 60)) % 60) + 60) % 60;
+    $("#fMin").value = m; $("#fSec").value = s; E.method = "tap";
+    updateResult();
+  }
+  function readFields() {
+    const m = parseFloat($("#fMin").value), s = parseFloat($("#fSec").value);
+    if (!Number.isFinite(m) || !Number.isFinite(s) || m < 0 || m >= 60 || s < 0 || s >= 60) return null;
+    return { m: Math.floor(m), s };
+  }
+  function updateResult() {
+    const f = readFields(), box = $("#edResult");
+    if (!f) { box.innerHTML = `<span class="muted small">Watch error</span><span class="big">—</span><span class="small muted">Place the points or type the minutes and seconds.</span>`; $("#edSave").disabled = true; return; }
+    const o = offsetFor(E.t, f.m, f.s);
+    box.innerHTML = `<span class="muted small">Watch error at this photo</span><span class="big ${o < 0 ? "loss" : o > 0 ? "gain" : ""}">${sgn(o)} s</span><span class="small muted num">Watch ${fmtClock(E.t + o * 1000)} · phone ${fmtClock(E.t)}</span>`;
+    $("#edSave").disabled = false;
+  }
+  $("#fMin").oninput = $("#fSec").oninput = () => { E.method = "manual"; updateResult(); };
+  $("#fRef").onchange = () => { const t = new Date($("#fRef").value).getTime(); if (Number.isFinite(t)) { E.t = t; updateResult(); } };
+  document.querySelectorAll(".nudge button").forEach((b) => b.onclick = () => {
+    const f = readFields(); if (!f) return;
+    let tot = (f.m * 60 + f.s + parseFloat(b.dataset.n) + 3600) % 3600;
+    $("#fMin").value = Math.floor(tot / 60); $("#fSec").value = +(tot % 60).toFixed(1); updateResult();
+  });
+  $("#edSave").onclick = async () => {
+    const f = readFields(); if (!f) return;
+    const r = { watchId: S.sel, t: E.t, offset: Math.round(offsetFor(E.t, f.m, f.s) * 10) / 10, min: f.m, sec: f.s, method: E.method, saved: Date.now() };
+    $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
+    try { await store.addReading(r, E.blob); closeEditor(); toast("Reading saved: " + sgn(r.offset) + " s"); }
+    catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t save the reading (" + (e.code || e.message) + "). Check your connection and try again."; }
+    $("#edSave").textContent = "Save"; $("#edSave").disabled = false;
+  };
+
+  // ---------- start ----------
+  try { S.sel = localStorage.getItem("watchRateLog.sel"); } catch {}
+  render();
+  (async () => {
+    let s = null;
+    try { s = await cloudStore(); } catch { s = null; }
+    store = s || localStore();
+    $("#storageNote").textContent = store.kind === "local"
+      ? "Readings and photos are stored in this browser on this phone. Clearing browser data deletes them."
+      : store.assets ? "" : "Readings are saved to your account; photos stay on this phone.";
+    store.start(); render();
+  })();
+})();
+</script>
+
+</body>
+</html>
