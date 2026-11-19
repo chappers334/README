@@ -125,7 +125,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 /* Bench view */
 #editor { position: fixed; inset: 0; z-index: 20; background: var(--bg); overflow-y: auto; }
 #editor .wrap { padding-block: calc(14px + env(safe-area-inset-top, 0px)) 40px; gap: 14px; }
-.edhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.edhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; top: 0; z-index: 4; background: var(--bg); padding-block: 8px; }
+#newBox { scroll-margin-top: 72px; }
 .stagebox { display: flex; justify-content: center; }
 #stage { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 12px; max-width: 100%; }
 #photo { display: block; width: 100%; height: auto; border-radius: 12px; pointer-events: none; }
@@ -151,6 +152,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .ai .body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .ai .body strong { font-weight: 600; }
 .ai.warn { border-color: var(--warn); }
+#newBox.ask #fJob { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.chip .job { opacity: 0.7; font-weight: 400; margin-left: 4px; }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
 .nudge { display: flex; gap: 6px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg);
@@ -167,16 +170,10 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   <nav class="chips" id="watchChips" aria-label="Watches"></nav>
 
   <section id="newWatch" class="panel empty" hidden>
-    <h2>Add a watch</h2>
-    <div class="field">
-      <label for="watchName">Watch name or job number</label>
-      <input class="input" id="watchName" placeholder="e.g. Omega 30T2 — job 1142" maxlength="60">
-    </div>
-    <div class="row">
-      <button class="btn primary" id="createWatch">Add watch</button>
-      <button class="btn ghost" id="cancelWatch" hidden>Cancel</button>
-    </div>
+    <h2>Start a test</h2>
+    <p class="prompt" style="margin:0">Take a photo of the watch to begin.</p>
     <ol class="how">
+      <li><b>Tap Photograph watch</b> below. The AI recognises the brand and model, then asks you for the job number.</li>
       <li><b>Wind the watch</b> and keep it running. It doesn’t need to show the right time.</li>
       <li><b>Once a day</b>, tap <b>Photograph watch</b> and take a sharp, square-on photo of the dial with the seconds hand visible.</li>
       <li><b>The first photo is the starting point</b> and counts as 0 s. Every later photo shows the seconds (or minutes) gained or lost since then, timed by your phone’s network-synced clock.</li>
@@ -190,8 +187,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <button class="btn tiny ghost" id="watchMenuBtn">Watch options</button>
     </div>
     <div id="watchMenu" class="row" hidden>
+      <button class="btn tiny" id="editWatchBtn">Edit brand, model and job number</button>
       <button class="btn tiny" id="restartRun">Start a new test from now</button>
       <button class="btn tiny danger" id="deleteWatch">Delete watch</button>
+    </div>
+    <div id="editWatch" class="timegrid" hidden>
+      <div class="field"><label for="ewName">Brand and model</label><input class="input" id="ewName" maxlength="80"></div>
+      <div class="field"><label for="ewJob">Job number</label><input class="input" id="ewJob" maxlength="30"></div>
+      <div class="row"><button class="btn tiny primary" id="ewSave">Save details</button><button class="btn tiny ghost" id="ewCancel">Cancel</button></div>
     </div>
     <div class="rate">
       <svg class="dial" id="dial" viewBox="0 0 100 100" aria-hidden="true"></svg>
@@ -235,6 +238,12 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <button class="btn primary" id="edSave" disabled>Save</button>
     </div>
 
+    <div class="panel" id="newBox" hidden>
+      <h2>New watch</h2>
+      <div class="field"><label for="fBrand">Brand and model</label><input class="input" id="fBrand" maxlength="80" placeholder="e.g. Omega Seamaster 300"></div>
+      <div class="field"><label for="fJob">Job number</label><input class="input" id="fJob" maxlength="30" placeholder="e.g. 1142" enterkeyhint="done"></div>
+      <span class="small muted" id="newHint"></span>
+    </div>
     <div class="ai" id="aiBox" hidden>
       <span class="spin" id="aiSpin"></span>
       <div class="body"><strong id="aiTitle">Reading the hands…</strong><span class="small muted" id="aiText"></span>
@@ -365,7 +374,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     return {
       kind: "local",
       start() { emit(); },
-      async addWatch(name) { const d = load(); const w = { id: uid(), name, created: Date.now(), runStart: 0 }; d.watches.push(w); save(d); emit(); return w.id; },
+      async addWatch(f) { const d = load(); const w = { id: uid(), name: f.name, job: f.job || "", created: Date.now(), runStart: 0 }; d.watches.push(w); save(d); emit(); return w.id; },
       async updateWatch(id, patch) { const d = load(); Object.assign(d.watches.find((w) => w.id === id) || {}, patch); save(d); emit(); },
       async deleteWatch(id) { const d = load(); const gone = d.readings.filter((r) => r.watchId === id); d.watches = d.watches.filter((w) => w.id !== id); d.readings = d.readings.filter((r) => r.watchId !== id); save(d); for (const r of gone) try { await tx("readwrite", (s) => s.delete(r.id)); } catch {} emit(); },
       async addReading(r, blob) { r.id = uid(); try { if (blob) { await tx("readwrite", (s) => s.put(blob, r.id)); r.photo = "local"; } } catch {} const d = load(); d.readings.push(r); save(d); emit(); },
@@ -397,7 +406,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
         W.onSnapshot((s) => { S.watches = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fw) { fw = true; done(); } render(); }, fail);
         R.onSnapshot((s) => { S.readings = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fr) { fr = true; done(); } render(); }, fail);
       },
-      async addWatch(name) { const ref = await W.add({ name, created: Date.now(), runStart: 0 }); return ref.id; },
+      async addWatch(f) { const ref = await W.add({ name: f.name, job: f.job || "", created: Date.now(), runStart: 0 }); return ref.id; },
       async updateWatch(wid, patch) { await W.doc(wid).update(patch); },
       async deleteWatch(wid) {
         for (const r of S.readings.filter((r) => r.watchId === wid)) await this.deleteReading(r);
@@ -430,20 +439,20 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const chips = $("#watchChips");
     chips.replaceChildren(...S.watches.map((w) => {
       const b = document.createElement("button"); b.className = "chip"; b.textContent = w.name;
+      if (w.job) { const j = document.createElement("span"); j.className = "job"; j.textContent = "#" + w.job; b.append(j); }
       b.setAttribute("aria-pressed", String(w.id === S.sel));
       b.onclick = () => { S.sel = w.id; S.adding = false; S.menu = false; render(); };
       return b;
     }));
-    if (S.watches.length) { const a = document.createElement("button"); a.className = "chip add"; a.textContent = "+ Watch"; a.onclick = () => { S.adding = true; render(); $("#watchName").focus(); }; chips.append(a); }
+    if (S.watches.length) { const a = document.createElement("button"); a.className = "chip add"; a.textContent = "+ Watch"; a.onclick = () => startNewWatch(); chips.append(a); }
     chips.hidden = !S.watches.length;
 
-    const showNew = !!store && (!S.watches.length || S.adding);
+    const showNew = !!store && !S.watches.length;
     $("#newWatch").hidden = !showNew;
-    $("#cancelWatch").hidden = !S.watches.length;
     const w = cur();
     const hasW = !!w && !showNew;
     $("#summary").hidden = !hasW;
-    $("#fab").hidden = !hasW;
+    $("#fab").hidden = !store;
     $("#watchMenu").hidden = !S.menu;
     if (!hasW) { $("#chartPanel").hidden = $("#logPanel").hidden = true; return; }
 
@@ -451,7 +460,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const { run, old } = withRel(all, w.runStart || 0);
     const counted = run.filter((r) => r.counted);
     const A = analyse(counted); A.readyAt = run.length ? run[0].t + MIN_GAP : 0;
-    $("#sumTitle").textContent = w.name;
+    $("#sumTitle").textContent = w.name + (w.job ? " · Job " + w.job : "");
 
     const big = $("#rateBig"), ver = $("#rateVerdict");
     if (A.rate === undefined) {
@@ -560,15 +569,13 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   }
 
   // ---------- watch management ----------
-  $("#createWatch").onclick = async () => {
-    const name = $("#watchName").value.trim() || "Watch " + (S.watches.length + 1);
-    $("#createWatch").disabled = true;
-    try { const id = await store.addWatch(name); S.sel = id; S.adding = false; $("#watchName").value = ""; toast("Added " + name); }
-    catch (e) { toast("Couldn’t add the watch: " + (e.code || e.message)); }
-    $("#createWatch").disabled = false; render();
+  $("#editWatchBtn").onclick = () => { const w = cur(); $("#ewName").value = w.name || ""; $("#ewJob").value = w.job || ""; $("#editWatch").hidden = false; S.menu = false; render(); $("#ewJob").focus(); };
+  $("#ewCancel").onclick = () => { $("#editWatch").hidden = true; };
+  $("#ewSave").onclick = async () => {
+    const name = $("#ewName").value.trim() || cur().name, job = $("#ewJob").value.trim();
+    try { await store.updateWatch(S.sel, { name, job }); $("#editWatch").hidden = true; toast("Details saved"); render(); }
+    catch (e) { toast("Couldn’t save the details: " + (e.code || e.message)); }
   };
-  $("#watchName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#createWatch").click(); });
-  $("#cancelWatch").onclick = () => { S.adding = false; render(); };
   $("#watchMenuBtn").onclick = () => { S.menu = !S.menu; S.arm = null; render(); };
   $("#restartRun").onclick = async () => {
     if (S.arm !== "restart") { S.arm = "restart"; $("#restartRun").textContent = "Confirm: start new test"; return; }
@@ -594,7 +601,9 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   ];
   const colors = { c: "--ink", top: "--hand-ref", m: "--hand-min", sc: "--ink", s: "--hand-sec" };
 
-  $("#fab").onclick = () => { $("#camera").value = ""; $("#camera").click(); };
+  // The big button adds a photo to the selected watch; with no watches yet it starts a new one
+  $("#fab").onclick = () => { S.newMode = !cur(); $("#camera").value = ""; $("#camera").click(); };
+  function startNewWatch() { S.newMode = true; $("#camera").value = ""; $("#camera").click(); }
   $("#camera").onchange = async (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     const t = f.lastModified && Math.abs(Date.now() - f.lastModified) < 400 * DAY ? f.lastModified : Date.now();
@@ -607,7 +616,12 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     E.blob = blob; if (E.url) URL.revokeObjectURL(E.url); E.url = URL.createObjectURL(blob);
     E.t = t; E.pts = {}; E.step = 0; E.method = "manual";
     $("#fMin").value = ""; $("#fSec").value = ""; $("#fRef").value = toLocalInput(t);
-    $("#edErr").hidden = true; $("#edWatch").textContent = cur().name;
+    $("#edErr").hidden = true;
+    E.isNew = !!S.newMode || !cur(); S.newMode = false;
+    $("#edWatch").textContent = E.isNew ? "New watch" : cur().name;
+    $("#newBox").hidden = !E.isNew; $("#newBox").classList.remove("ask");
+    $("#fBrand").value = ""; $("#fJob").value = ""; E.brandTouched = false;
+    $("#newHint").textContent = E.isNew ? (sampler ? "The AI is recognising the watch…" : "Type the brand and model, and the job number.") : "";
     const img = $("#photo");
     img.onload = () => {
       const ar = img.naturalWidth / img.naturalHeight;
@@ -725,15 +739,22 @@ Locate these points as precisely as you can, in pixel coordinates of this image:
 - "subdial_center": if the seconds hand is on a small sub-dial, the pivot of that sub-dial; otherwise null.
 Do not confuse chronograph hands or the hour hand with the minute and seconds hands. A chronograph seconds hand that is stopped at 12 is not the running seconds hand.
 
-Also give your own direct reading of the displayed time, and a short description of the watch.
+Also give your own direct reading of the displayed time, and identify the watch: the brand from the dial or case, and the model or collection name if you can recognise it (for example "Seamaster 300", "Datejust", "Speedmaster Professional"). Use the dial text and design; don't guess a model you aren't fairly sure of.
 
 Reply with JSON only, in exactly this shape:
-{"center":{"x":0,"y":0},"twelve":{"x":0,"y":0},"minute_tip":{"x":0,"y":0},"seconds_tip":{"x":0,"y":0},"subdial_center":null,"reading":{"hours":0,"minutes":0,"seconds":0},"watch":"brand and model if visible, otherwise a short description such as 'steel dress watch, white dial'","confidence":"high|medium|low","problem":"empty string, or what made it hard (glare, blur, hands overlapping, no seconds hand)"}`;
+{"center":{"x":0,"y":0},"twelve":{"x":0,"y":0},"minute_tip":{"x":0,"y":0},"seconds_tip":{"x":0,"y":0},"subdial_center":null,"reading":{"hours":0,"minutes":0,"seconds":0},"brand":"brand name, or empty string if not visible","model":"model or collection name, or empty string if unsure","watch":"short description such as 'steel dress watch, white dial'","confidence":"high|medium|low","problem":"empty string, or what made it hard (glare, blur, hands overlapping, no seconds hand)"}`;
       const res = await sampler.json(prompt, { images: im.blob, modelTier: "complex", signal: ctl.signal, cache: false });
       if (ctl !== aiCtl || forBlob !== E.blob) return;
       const pt = (q) => q && Number.isFinite(+q.x) && Number.isFinite(+q.y) ? { x: +q.x / im.k, y: +q.y / im.k } : null;
       const c = pt(res.center), top = pt(res.twelve), m = pt(res.minute_tip), sec = pt(res.seconds_tip), sc = pt(res.subdial_center);
-      const what = typeof res.watch === "string" ? res.watch.slice(0, 120) : "";
+      const str = (v) => (typeof v === "string" ? v.trim() : "");
+      const brandModel = [str(res.brand), str(res.model)].filter(Boolean).join(" ").slice(0, 80);
+      const what = brandModel || str(res.watch).slice(0, 120);
+      if (E.isNew) {
+        if (brandModel && !E.brandTouched) $("#fBrand").value = brandModel;
+        if (!brandModel) $("#newHint").textContent = "The AI couldn’t tell the brand. Type the brand and model.";
+        askJob();
+      }
       if (!c || !top || !m) { aiState("warn", "The AI couldn’t find the hands", (res.problem ? String(res.problem).slice(0, 160) + ". " : "") + "Tap the points yourself."); return; }
       E.pts = { c, top, m }; if (sec) E.pts.s = sec;
       $("#smallSec").checked = !!sc; if (sc) E.pts.sc = sc;
@@ -752,6 +773,7 @@ Reply with JSON only, in exactly this shape:
       aiState(kind, (what ? "Watch: " + what : "Hands found") + (kind === "warn" ? " · please check" : ""), note);
     } catch (e) {
       if (ctl !== aiCtl) return;
+      if (E.isNew) { $("#newHint").textContent = "Type the brand and model, and the job number."; }
       if (e && e.code === "cancelled") { aiState("idle", "AI reading stopped", "Tap the hands yourself, or run the AI again."); return; }
       aiState("warn", "AI reading didn’t work", aiCopy[e && e.code] || "Something went wrong. Tap the hands yourself, or try again.");
     } finally { if (ctl === aiCtl) aiCtl = null; }
@@ -778,8 +800,8 @@ Reply with JSON only, in exactly this shape:
   function updateResult() {
     const f = readFields(), box = $("#edResult");
     if (!f) { box.innerHTML = `<span class="muted small">Watch error</span><span class="big">—</span><span class="small muted">Place the points or type the minutes and seconds.</span>`; $("#edSave").disabled = true; return; }
-    const o = offsetFor(E.t, f.m, f.s), w = cur();
-    const { run } = withRel(S.readings.filter((r) => r.watchId === w.id && r.t < E.t).sort((a, b) => a.t - b.t), w.runStart || 0);
+    const o = offsetFor(E.t, f.m, f.s), w = E.isNew ? null : cur();
+    const { run } = w ? withRel(S.readings.filter((r) => r.watchId === w.id && r.t < E.t).sort((a, b) => a.t - b.t), w.runStart || 0) : { run: [] };
     if (!run.length) {
       box.innerHTML = `<span class="muted small">First photo of this test</span><span class="big">0 s</span><span class="small muted num">This photo is the starting point. Watch read ${fmtRead({ min: f.m, sec: f.s })} at ${fmtClock(E.t)}.</span>`;
     } else if (E.t - run[0].t < MIN_GAP) {
@@ -797,9 +819,22 @@ Reply with JSON only, in exactly this shape:
     let tot = (f.m * 60 + f.s + parseFloat(b.dataset.n) + 3600) % 3600;
     $("#fMin").value = Math.floor(tot / 60); $("#fSec").value = +(tot % 60).toFixed(1); updateResult();
   });
+  $("#fBrand").oninput = () => { E.brandTouched = true; };
+  function askJob() {
+    const box = $("#newBox"); box.classList.add("ask");
+    $("#newHint").textContent = "Now enter the job number for this watch.";
+    if (!$("#fJob").value) { $("#fJob").focus({ preventScroll: true }); box.scrollIntoView({ block: "start", behavior: "smooth" }); }
+  }
   $("#edSave").onclick = async () => {
     const f = readFields(); if (!f) return;
-    const r = { watchId: S.sel, t: E.t, offset: Math.round(offsetFor(E.t, f.m, f.s) * 10) / 10, min: f.m, sec: f.s, method: E.method, saved: Date.now() };
+    let watchId = S.sel;
+    if (E.isNew) {
+      const name = $("#fBrand").value.trim() || "Watch " + (S.watches.length + 1), job = $("#fJob").value.trim();
+      try { watchId = await store.addWatch({ name, job }); S.sel = watchId; }
+      catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t add the watch (" + (e.code || e.message) + "). Check your connection and try again."; return; }
+      E.isNew = false;
+    }
+    const r = { watchId, t: E.t, offset: Math.round(offsetFor(E.t, f.m, f.s) * 10) / 10, min: f.m, sec: f.s, method: E.method, saved: Date.now() };
     $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
     try { await store.addReading(r, E.blob); closeEditor(); toast("Reading saved"); }
     catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t save the reading (" + (e.code || e.message) + "). Check your connection and try again."; }

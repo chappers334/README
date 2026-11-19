@@ -4,7 +4,7 @@ A phone web app for watchmakers. Photograph a watch dial once a day, tap the han
 
 ## How it works
 
-1. Add a watch. Wind it and keep it running; it doesn't need to show the right time.
+1. Tap **Photograph watch**. For a new watch, the AI recognises the brand and model from the photo and then asks for the job number (both can be edited). Wind the watch and keep it running; it doesn't need to show the right time.
 2. Once a day, tap **Photograph watch** and take a sharp, square-on photo with the seconds hand visible.
 3. **In the claude.ai version, AI reads the hands for you.** It places the centre, 12 o'clock, minute-hand and seconds-hand points and names the watch it sees. Check the lines sit on the hands and save. If one is off, tap that step and place it yourself.
    In the GitHub Pages version (no AI), tap the points yourself: the centre of the hands, the 12 o'clock marker, the tip of the minute hand, and the tip of the seconds hand. There is a magnifier for accuracy. Small-seconds sub-dials are supported.
