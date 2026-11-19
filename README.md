@@ -14,6 +14,20 @@ A phone web app for watchmakers. Photograph a watch dial once a day, tap the han
 
 Keep **Automatic date and time** turned on in the phone settings, so the reference clock is network-synced.
 
-## Running it on a Samsung phone
+## Installing it on a Samsung phone
 
-`index.html` is a single self-contained file. Host it anywhere that serves HTTPS (for example GitHub Pages: Settings → Pages → deploy from this branch), open it in Chrome or Samsung Internet, and use **Add to Home screen**. Readings and photos are stored on the phone in browser storage.
+The app is published with GitHub Pages at **https://chappers334.github.io/README/**
+
+1. Open that address in **Chrome** or **Samsung Internet** on the phone.
+2. Chrome: menu (⋮) → **Add to Home screen** → **Install**. Samsung Internet: menu (☰) → **Add page to** → **Home screen**.
+3. It opens full-screen from its own icon, like a normal app, and works offline.
+
+Readings and photos are stored on the phone. Uninstalling the app or clearing the browser's site data deletes them.
+
+### One-time GitHub Pages setup
+
+1. On GitHub, open the repository → **Settings** → **Pages**.
+2. Under **Build and deployment**, set **Source** to **Deploy from a branch**, pick the branch that holds `index.html` and the folder **/ (root)**, then **Save**.
+3. After a minute or two the address above starts working.
+
+GitHub Pages for a private repository needs a paid GitHub plan. On a free account, make the repository public first (Settings → General → Danger Zone → Change visibility).
