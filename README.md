@@ -1,4 +1,4 @@
-# Watch Rate Log
+# Stein Diamonds · Watch Rate Log
 
 A phone web app for watchmakers. Photograph a watch dial once a day, tap the hands on the photo, and the app works out how many seconds the watch gains or loses per day and over a week.
 
@@ -39,3 +39,7 @@ Readings and photos are stored on the phone. Uninstalling the app or clearing th
 3. After a minute or two the address above starts working.
 
 GitHub Pages for a private repository needs a paid GitHub plan. On a free account, make the repository public first (Settings → General → Danger Zone → Change visibility).
+
+## Brand
+
+The app and both printouts follow the Stein Diamonds brand guideline (2026): Windsor as the primary colour with Antique, Caviar and Almond, the centred monogram-over-logotype lockup, and Unna as the primary typeface. CG Omega isn't available as a web font, so Belleza stands in for it (the app uses CG Omega or Optima when installed). The logo files and fonts are in `brand/`.
