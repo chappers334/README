@@ -193,6 +193,47 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--caviar); color: var(--antique);
   padding: 10px 16px; border-radius: var(--radius); z-index: 30; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: no-preference) { .fab { transition: transform .15s; } .fab:active { transform: scale(0.97); } }
+/* CRM */
+.tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.tabs button { border: 0; background: none; padding: 11px 6px; font-size: 0.74rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.tabs button + button { border-left: 1px solid var(--line); }
+.tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.view { display: flex; flex-direction: column; gap: 18px; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.list li > button { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 12px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; align-items: center; }
+.list li:first-child > button { border-top: 0; }
+.list .t1 { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; min-width: 0; overflow-wrap: anywhere; }
+.list .t2 { font-size: 0.84rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.list .r1 { text-align: right; }
+.list .r2 { text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; }
+.empty-note { color: var(--muted); font-size: 0.9rem; padding: 6px 0; }
+.stage { display: inline-block; font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.stage.work { border-color: var(--accent-text); color: var(--accent-text); }
+.stage.test { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.stage.ready { border-color: var(--gain); color: var(--gain); }
+.filehead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.filehead .jobno { font-family: var(--font-display); font-size: 1.9rem; line-height: 1.1; }
+.filehead .watchname { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; }
+.kv div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kv span { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+.kv b { font-family: var(--font-display); font-weight: 700; font-size: 1rem; overflow-wrap: anywhere; user-select: text; }
+.kv .wide { grid-column: 1 / -1; }
+.kv b.plain { font-family: var(--font-ui); font-weight: 400; white-space: pre-wrap; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; font: inherit; text-align: left; }
+.ticketlink { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg); }
+.ticketlink .tl1 { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.ticketlink .tl2 { font-family: var(--font-display); font-weight: 700; overflow-wrap: anywhere; }
+.notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.notes li { border-left: 2px solid var(--line); padding-left: 10px; }
+.notes .nt { font-size: 0.74rem; color: var(--muted); }
+.notes .nx { white-space: pre-wrap; overflow-wrap: anywhere; }
+textarea.input { min-height: 70px; resize: vertical; font: inherit; }
+.formgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.formgrid .wide { grid-column: 1 / -1; }
+.testbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--accent-soft); }
+.testbox .big { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
+.warnline { color: var(--warn); font-size: 0.85rem; }
 </style>
 
 <header class="brandbar">
@@ -201,6 +242,13 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 </header>
 <div class="wrap" id="home">
   <div class="statusrow"><div class="status" id="status"><i></i><span>Connecting…</span></div></div>
+  <nav class="tabs" id="tabs" aria-label="Sections">
+    <button data-view="tests" aria-pressed="true">Tests</button>
+    <button data-view="tickets" aria-pressed="false">Tickets</button>
+    <button data-view="customers" aria-pressed="false">Customers</button>
+  </nav>
+
+  <div class="view" id="viewTests">
 
   <div class="jobbar" id="jobBar" hidden>
     <div class="field" style="flex:1">
@@ -234,6 +282,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       <button class="btn tiny" id="restartRun">Start a new test from now</button>
       <button class="btn tiny danger" id="deleteWatch">Delete watch</button>
     </div>
+    <button class="ticketlink" id="ticketLink"><span><span class="tl1">Ticket file</span><br><span class="tl2" id="ticketLinkText"></span></span><span aria-hidden="true">→</span></button>
     <div class="donebar" id="doneBar" hidden><span id="doneText"></span><button class="btn tiny" id="closePast">Back to current jobs</button></div>
     <div id="editWatch" class="timegrid" hidden>
       <div class="field"><label for="ewName">Brand and model</label><input class="input" id="ewName" maxlength="80"></div>
@@ -271,6 +320,29 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     <ul class="log" id="log"></ul>
     <div class="avg" id="logAvg" hidden></div>
   </section>
+
+  </div>
+
+  <div class="view" id="viewTickets" hidden>
+    <div class="row"><input class="input" id="tkSearch" type="search" placeholder="Search job number, watch or customer" style="flex:1;min-width:180px"><button class="btn primary" id="tkNew">+ New ticket</button></div>
+    <select class="input" id="tkFilter" aria-label="Show tickets"></select>
+    <section class="panel"><ul class="list" id="tkList"></ul></section>
+  </div>
+
+  <div class="view" id="viewTicket" hidden>
+    <div class="row"><button class="btn ghost" id="tkBack">← Tickets</button></div>
+    <section class="panel" id="tkFile"></section>
+  </div>
+
+  <div class="view" id="viewCustomers" hidden>
+    <div class="row"><input class="input" id="cuSearch" type="search" placeholder="Search name, phone or email" style="flex:1;min-width:180px"><button class="btn primary" id="cuNew">+ New customer</button></div>
+    <section class="panel"><ul class="list" id="cuList"></ul></section>
+  </div>
+
+  <div class="view" id="viewCustomer" hidden>
+    <div class="row"><button class="btn ghost" id="cuBack">← Customers</button></div>
+    <section class="panel" id="cuFile"></section>
+  </div>
 
   <p class="note" id="storageNote"></p>
 </div>
@@ -364,7 +436,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   const nextMidnight = (t) => { const d = new Date(t); d.setHours(24, 0, 0, 0); return d.getTime(); };
   const dayLabel = (t, t0) => "Day " + (dayNo(t) - dayNo(t0));
   const fmtDay = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
-    const S = { mode: "connecting", watches: [], readings: [], sel: null, adding: false, arm: null, menu: false };
+    const S = { mode: "connecting", watches: [], readings: [], customers: [], view: "tests", ticket: null, customer: null, tkEdit: null, cuEdit: false, noteDraft: "", sel: null, adding: false, arm: null, menu: false };
   let store = null;
 
   // ---------- helpers ----------
@@ -461,7 +533,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   // ---------- local store (this phone only) ----------
   function localStore() {
     const KEY = "watchRateLog.v1";
-    const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { watches: [], readings: [] }; } catch { return { watches: [], readings: [] }; } };
+    const load = () => { let d; try { d = JSON.parse(localStorage.getItem(KEY)); } catch {} d = d || {}; d.watches = d.watches || []; d.readings = d.readings || []; d.customers = d.customers || []; return d; };
     const save = (d) => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch { toast("Couldn’t save on this phone. Storage may be full or blocked."); } };
     let dbp = null;
     const idb = () => dbp || (dbp = new Promise((res, rej) => {
@@ -471,11 +543,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     }));
     const tx = async (mode, fn) => { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction("photos", mode); const q = fn(t.objectStore("photos")); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
     const urls = {};
-    const emit = () => { const d = load(); S.watches = d.watches; S.readings = d.readings; render(); };
+    const emit = () => { const d = load(); S.watches = d.watches; S.readings = d.readings; S.customers = d.customers; render(); };
     return {
       kind: "local",
       start() { emit(); },
-      async addWatch(f) { const d = load(); const w = { id: uid(), name: f.name, job: f.job || "", created: Date.now(), runStart: 0 }; d.watches.push(w); save(d); emit(); return w.id; },
+      async addWatch(f) { const d = load(); const w = { runStart: 0, ...f, id: uid(), job: f.job || "", created: Date.now() }; d.watches.push(w); save(d); emit(); return w.id; },
+      async addCustomer(f) { const d = load(); const c = { ...f, id: uid(), created: Date.now() }; d.customers.push(c); save(d); emit(); return c.id; },
+      async updateCustomer(id, patch) { const d = load(); Object.assign(d.customers.find((c) => c.id === id) || {}, patch); save(d); emit(); },
+      async deleteCustomer(id) { const d = load(); d.customers = d.customers.filter((c) => c.id !== id); d.watches.forEach((w) => { if (w.customerId === id) w.customerId = ""; }); save(d); emit(); },
       async updateWatch(id, patch) { const d = load(); Object.assign(d.watches.find((w) => w.id === id) || {}, patch); save(d); emit(); },
       async deleteWatch(id) { const d = load(); const gone = d.readings.filter((r) => r.watchId === id); d.watches = d.watches.filter((w) => w.id !== id); d.readings = d.readings.filter((r) => r.watchId !== id); save(d); for (const r of gone) try { await tx("readwrite", (s) => s.delete(r.id)); await tx("readwrite", (s) => s.delete(r.id + ":orig")); } catch {} emit(); },
       // blob = the photo as taken; orig = an untouched original saved by older versions alongside an enhanced copy
@@ -503,20 +578,28 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const assets = await window.claude.use("assets");
     const local = localStore();
     const base = "data/users/" + id;
-    const W = db.collection(base + "/watches"), R = db.collection(base + "/readings");
+    const W = db.collection(base + "/watches"), R = db.collection(base + "/readings"), CU = db.collection(base + "/customers");
     const clean = (o) => { const c = {}; for (const k in o) if (o[k] !== undefined && k !== "id") c[k] = o[k]; return c; };
     return {
       kind: "cloud", assets: !!assets,
       start() {
         let got = 0;
-        const timer = setTimeout(() => { if (got < 2) $("#storageNote").textContent = "Still loading your readings… check your connection."; }, 10000);
-        const done = () => { if (++got === 2) { clearTimeout(timer); $("#storageNote").textContent = ""; } };
+        const timer = setTimeout(() => { if (got < 3) $("#storageNote").textContent = "Still loading your readings… check your connection."; }, 10000);
+        const done = () => { if (++got === 3) { clearTimeout(timer); $("#storageNote").textContent = ""; } };
         const fail = (e) => { clearTimeout(timer); $("#storageNote").textContent = "Couldn’t load saved readings (" + (e && e.code || "error") + "). Reload to try again."; };
         let fw = false, fr = false;
         W.onSnapshot((s) => { S.watches = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fw) { fw = true; done(); } render(); }, fail);
         R.onSnapshot((s) => { S.readings = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fr) { fr = true; done(); } render(); }, fail);
+        let fc = false;
+        CU.onSnapshot((s) => { S.customers = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fc) { fc = true; done(); } render(); }, fail);
       },
-      async addWatch(f) { const ref = await W.add({ name: f.name, job: f.job || "", created: Date.now(), runStart: 0 }); return ref.id; },
+      async addWatch(f) { const ref = await W.add(clean({ runStart: 0, ...f, job: f.job || "", created: Date.now() })); return ref.id; },
+      async addCustomer(f) { const ref = await CU.add(clean({ ...f, created: Date.now() })); return ref.id; },
+      async updateCustomer(cid, patch) { await CU.doc(cid).update(clean(patch)); },
+      async deleteCustomer(cid) {
+        for (const w of S.watches.filter((w) => w.customerId === cid)) await W.doc(w.id).update({ customerId: "" });
+        await CU.doc(cid).delete();
+      },
       async updateWatch(wid, patch) { await W.doc(wid).update(patch); },
       async deleteWatch(wid) {
         for (const r of S.readings.filter((r) => r.watchId === wid)) await this.deleteReading(r);
@@ -548,6 +631,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const st = $("#status");
     st.className = "status " + (store ? store.kind : "");
     st.querySelector("span").textContent = !store ? "Connecting…" : store.kind === "cloud" ? "Saved to your account" : "Saved on this phone";
+    renderViews();
 
     renderJobSelect(active, past);
     const w = cur();
@@ -556,7 +640,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     $("#newWatch").hidden = !showNew;
     const hasW = !!w;
     $("#summary").hidden = !hasW;
-    $("#fabs").hidden = !store || isDone;
+    $("#fabs").hidden = !store || isDone || S.view !== "tests";
     $("#watchMenu").hidden = !S.menu;
     $("#doneBar").hidden = !isDone;
     if (isDone) $("#doneText").textContent = "Completed job" + (w.completedAt ? " · " + new Date(w.completedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -568,6 +652,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const counted = run.filter((r) => r.counted);
     const A = analyse(counted); A.readyAt = run.length ? nextMidnight(run[0].t) : 0;
     $("#sumTitle").textContent = w.name + (w.job ? " · Job " + w.job : "");
+    { const c = custOf(w); $("#ticketLinkText").textContent = `Job ${w.job || "—"}${c ? " · " + c.name : ""} · ${stageOf(w)}`; }
 
     const big = $("#rateBig"), ver = $("#rateVerdict");
     if (A.rate === undefined) {
@@ -683,7 +768,11 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     if (S.arm !== "complete") { S.arm = "complete"; $("#completeJob").textContent = "Confirm: mark complete"; return; }
     S.arm = null; $("#completeJob").textContent = "Mark job complete";
     const w = cur(); S.menu = false;
-    try { await store.updateWatch(w.id, { status: "done", completedAt: Date.now() }); toast("Job completed. Find it under Past jobs in the Job list."); S.sel = null; }
+    try {
+      const patch = { status: "done", completedAt: Date.now() };
+      if (STAGES.indexOf(stageOf(w)) < STAGES.indexOf("Ready for collection")) Object.assign(patch, { stage: "Ready for collection", notes: [...(w.notes || []), { t: Date.now(), text: "Time test complete · Status: Ready for collection" }] });
+      await store.updateWatch(w.id, patch); toast("Test completed. The ticket is now Ready for collection."); S.sel = null;
+    }
     catch (e) { toast("Couldn’t update the job: " + (e.code || e.message)); }
     render();
   };
@@ -704,6 +793,241 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     showViewer();
   }
   $("#vClose").onclick = () => { $("#viewer").hidden = true; document.body.style.overflow = ""; viewing = null; };
+
+  // ---------- CRM: tickets (one per job / watch) and customers ----------
+  const STAGES = ["Received", "Quoted", "Approved", "In workshop", "Time testing", "Ready for collection", "Collected"];
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  const custOf = (w) => (w && w.customerId ? S.customers.find((c) => c.id === w.customerId) : null);
+  const readingsOf = (w) => S.readings.filter((r) => r.watchId === w.id);
+  const stageOf = (w) => w.stage || (readingsOf(w).length ? "Time testing" : "Received");
+  const stageClass = (st) => (st === "Time testing" ? "test" : st === "Ready for collection" ? "ready" : ["Approved", "In workshop"].includes(st) ? "work" : "");
+  const dShort = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
+  const toDateInput = (t) => { if (!t) return ""; const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const fromDateInput = (v) => { if (!v) return 0; const [y, m, d] = v.split("-").map(Number); return new Date(y, m - 1, d, 12).getTime(); };
+  function go(view, extra) { Object.assign(S, { view, tkEdit: null, cuEdit: false, arm: null }, extra || {}); render(); window.scrollTo({ top: 0 }); }
+  document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => go(b.dataset.view)));
+  $("#ticketLink").onclick = () => { const w = cur(); if (w) go("ticket", { ticket: w.id }); };
+  $("#tkBack").onclick = () => go("tickets");
+  $("#cuBack").onclick = () => go("customers");
+  $("#tkNew").onclick = () => go("ticket", { ticket: null, tkEdit: { isNew: true } });
+  $("#cuNew").onclick = () => go("customer", { customer: null, cuEdit: {} });
+  $("#tkSearch").oninput = () => render();
+  $("#cuSearch").oninput = () => render();
+  $("#tkFilter").onchange = () => render();
+
+  function renderViews() {
+    const tab = { tests: "tests", tickets: "tickets", ticket: "tickets", customers: "customers", customer: "customers" }[S.view];
+    document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === tab)));
+    for (const [id, v] of [["viewTests", "tests"], ["viewTickets", "tickets"], ["viewTicket", "ticket"], ["viewCustomers", "customers"], ["viewCustomer", "customer"]]) $("#" + id).hidden = S.view !== v;
+    $("#tabs").hidden = !store;
+    if (!store) return;
+    if (S.view === "tickets") renderTicketList();
+    // An open form is drawn once and then left alone, so updates arriving while you type don't clear it
+    const tk = $("#tkFile"), cu = $("#cuFile");
+    if (S.view === "ticket") { if (S.tkEdit) { if (tk._form !== S.tkEdit) { tk._form = S.tkEdit; renderTicketForm(); } } else { tk._form = null; renderTicketFile(); } }
+    if (S.view === "customers") renderCustomerList();
+    if (S.view === "customer") { if (S.cuEdit) { if (cu._form !== S.cuEdit) { cu._form = S.cuEdit; renderCustomerForm(); } } else { cu._form = null; renderCustomerFile(); } }
+  }
+
+  function ticketRow(w, onClick) {
+    const c = custOf(w), st = stageOf(w), A = jobStats(w).A;
+    const li = document.createElement("li"), b = document.createElement("button");
+    b.innerHTML = `<span class="t1">${esc("Job " + (w.job || "—") + " · " + w.name)}</span><span class="r1"><span class="stage ${stageClass(st)}">${esc(st)}</span></span>
+      <span class="t2">${esc((c ? c.name + " · " : "") + "Received " + dShort(w.received || w.created))}</span>
+      <span class="r2 ${A.rate === undefined ? "" : r1(A.rate) < 0 ? "loss" : r1(A.rate) > 0 ? "gain" : ""}">${A.rate === undefined ? "" : esc(fmtDur(A.rate) + "/day")}</span>`;
+    b.onclick = onClick || (() => go("ticket", { ticket: w.id }));
+    li.append(b); return li;
+  }
+  function renderTicketList() {
+    const f = $("#tkFilter");
+    if (!f.options.length) f.innerHTML = `<option value="open">Open tickets</option><option value="all">All tickets</option>` + STAGES.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+    const q = $("#tkSearch").value.trim().toLowerCase(), fv = f.value;
+    const list = S.watches.filter((w) => {
+      const st = stageOf(w);
+      if (fv === "open" && st === "Collected") return false;
+      if (fv !== "open" && fv !== "all" && st !== fv) return false;
+      const c = custOf(w);
+      return !q || [w.job, w.name, c && c.name, c && c.phone, c && c.email].some((v) => String(v || "").toLowerCase().includes(q));
+    }).sort((a, b) => (b.received || b.created) - (a.received || a.created));
+    const ul = $("#tkList"); ul.replaceChildren(...list.map((w) => ticketRow(w)));
+    if (!list.length) ul.innerHTML = `<li class="empty-note">${S.watches.length ? "No tickets match." : "No tickets yet. Tap + New ticket, or photograph a watch in Tests to create one."}</li>`;
+  }
+
+  function renderTicketFile() {
+    const w = S.watches.find((x) => x.id === S.ticket), box = $("#tkFile");
+    if (document.activeElement && document.activeElement.id === "tfNote" && box.contains(document.activeElement)) return;
+    if (!w) { box.innerHTML = `<p class="empty-note">This ticket no longer exists.</p>`; return; }
+    const c = custOf(w), st = stageOf(w), J = jobStats(w), A = J.A;
+    const notes = [...(w.notes || [])].sort((a, b) => b.t - a.t);
+    box.innerHTML = `
+      <div class="filehead"><div><h2>Ticket file</h2><div class="jobno">Job ${esc(w.job || "—")}</div><div class="watchname">${esc(w.name)}</div></div>
+        <button class="btn tiny" id="tfEdit">Edit ticket</button></div>
+      <div class="field"><label for="tfStage">Status</label><select class="input" id="tfStage">${STAGES.map((x) => `<option${x === st ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></div>
+      <div class="kv">
+        <div class="wide"><span>Customer</span>${c ? `<b><button class="linkbtn" id="tfCust">${esc(c.name)}</button></b>` : `<b class="plain">No customer yet. <button class="linkbtn" id="tfAssign">Add a customer</button></b>`}</div>
+        ${c ? `<div><span>Phone</span><b class="plain">${esc(c.phone || "—")}</b></div><div><span>Email</span><b class="plain">${esc(c.email || "—")}</b></div>` : ""}
+        <div><span>Received</span><b>${esc(dShort(w.received || w.created))}</b></div>
+        <div><span>Promised</span><b>${esc(dShort(w.promised))}</b></div>
+        <div class="wide"><span>Work required</span><b class="plain">${esc(w.work || "—")}</b></div>
+        <div><span>Quote</span><b>${esc(w.quote || "—")}</b></div>
+        <div><span>Collected</span><b>${esc(st === "Collected" ? dShort(w.collectedAt) : "—")}</b></div>
+      </div>
+      <div class="testbox">
+        <h2>Watch time test</h2>
+        ${J.n ? `<div class="big ${A.rate === undefined ? "" : r1(A.rate) < 0 ? "loss" : r1(A.rate) > 0 ? "gain" : ""}">${A.rate === undefined ? "Started" : esc(verdict(A.rate, "per day"))}</div>
+          <div class="small muted">${esc(A.rate === undefined ? `Starting photo taken ${fmtWhen(J.first.t)}. Results from the next day’s photo.` : `${fmtDur(A.week)} per 7 days · ${A.days.toFixed(1)} days · ${J.n} photos · last photo ${fmtWhen(J.last.t)}`)}</div>`
+          : `<div class="small muted">No time test yet for this watch.</div>`}
+        <div class="row"><button class="btn primary" id="tfOpenTest">${J.n ? "Open time test" : "Start time test"}</button>
+          ${A.rate !== undefined ? `<button class="btn" id="tfA4">Print A4</button><button class="btn" id="tfReceipt">Print receipt</button>` : ""}</div>
+      </div>
+      <div class="field"><label for="tfNote">Add a note</label><textarea class="input" id="tfNote" placeholder="e.g. Customer approved quote by phone"></textarea>
+        <div class="row"><button class="btn" id="tfAddNote">Add note</button></div></div>
+      <ul class="notes" id="tfNotes">${notes.map((n) => `<li><div class="nt">${esc(fmtWhen(n.t))}</div><div class="nx">${esc(n.text)}</div></li>`).join("") || `<li class="empty-note" style="border:0;padding:0">No notes yet.</li>`}</ul>`;
+    $("#tfNote").value = S.noteDraft || "";
+    $("#tfNote").oninput = (e) => { S.noteDraft = e.target.value; };
+    $("#tfEdit").onclick = () => { S.tkEdit = { isNew: false }; render(); };
+    if (c) $("#tfCust").onclick = () => go("customer", { customer: c.id });
+    else $("#tfAssign").onclick = () => { S.tkEdit = { isNew: false, focusCustomer: true }; render(); };
+    $("#tfStage").onchange = (e) => setStage(w, e.target.value);
+    $("#tfOpenTest").onclick = () => go("tests", { sel: w.id });
+    if ($("#tfA4")) { $("#tfA4").onclick = () => { S.sel = w.id; makeReport("a4"); }; $("#tfReceipt").onclick = () => { S.sel = w.id; makeReport("receipt"); }; }
+    $("#tfAddNote").onclick = async () => {
+      const text = $("#tfNote").value.trim(); if (!text) return;
+      try { await store.updateWatch(w.id, { notes: [...(w.notes || []), { t: Date.now(), text }] }); S.noteDraft = ""; toast("Note added"); }
+      catch (e) { toast("Couldn’t add the note: " + (e.code || e.message)); }
+    };
+  }
+  async function setStage(w, st, quiet) {
+    const patch = { stage: st, notes: [...(w.notes || []), { t: Date.now(), text: "Status: " + st }] };
+    if (st === "Collected") Object.assign(patch, { status: "done", completedAt: w.completedAt || Date.now(), collectedAt: Date.now() });
+    else if (w.status === "done" && stageOf(w) === "Collected") Object.assign(patch, { status: "active", completedAt: 0 });
+    try { await store.updateWatch(w.id, patch); if (!quiet) toast("Status: " + st); } catch (e) { toast("Couldn’t change the status: " + (e.code || e.message)); }
+  }
+
+  function renderTicketForm() {
+    const isNew = S.tkEdit.isNew, w = isNew ? {} : S.watches.find((x) => x.id === S.ticket) || {};
+    const box = $("#tkFile"), custs = [...S.customers].sort((a, b) => a.name.localeCompare(b.name));
+    const pre = S.tkEdit.customerId || w.customerId || "";
+    box.innerHTML = `
+      <h2>${isNew ? "New ticket" : "Edit ticket"}</h2>
+      <div class="formgrid">
+        <div class="field"><label for="tfJob">Job number</label><input class="input" id="tfJob" maxlength="30" inputmode="text"></div>
+        <div class="field"><label for="tfStageE">Status</label><select class="input" id="tfStageE">${STAGES.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>
+        <div class="field wide"><label for="tfName">Watch (brand and model)</label><input class="input" id="tfName" maxlength="80" placeholder="e.g. Omega Seamaster 300"></div>
+        <div class="field wide"><label for="tfCustSel">Customer</label><select class="input" id="tfCustSel"><option value="">No customer</option>${custs.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}${c.phone ? " · " + esc(c.phone) : ""}</option>`).join("")}<option value="__new">+ New customer…</option></select></div>
+        <div class="field" data-newcust hidden><label for="tfCName">Customer name</label><input class="input" id="tfCName" maxlength="80"></div>
+        <div class="field" data-newcust hidden><label for="tfCPhone">Phone</label><input class="input" id="tfCPhone" maxlength="40" inputmode="tel"></div>
+        <div class="field wide" data-newcust hidden><label for="tfCEmail">Email</label><input class="input" id="tfCEmail" maxlength="120" inputmode="email"></div>
+        <div class="field wide"><label for="tfWork">Work required</label><textarea class="input" id="tfWork" placeholder="e.g. Full service, new crystal, regulate"></textarea></div>
+        <div class="field"><label for="tfQuote">Quote</label><input class="input" id="tfQuote" maxlength="40" placeholder="e.g. £450"></div>
+        <div class="field"><label for="tfRecv">Received</label><input class="input" id="tfRecv" type="date"></div>
+        <div class="field"><label for="tfProm">Promised</label><input class="input" id="tfProm" type="date"></div>
+      </div>
+      <p class="warnline" id="tfWarn" hidden></p>
+      <div class="row"><button class="btn primary" id="tfSave">${isNew ? "Create ticket" : "Save ticket"}</button><button class="btn ghost" id="tfCancel">Cancel</button>
+        ${isNew ? "" : `<button class="btn ghost danger" id="tfDelete">Delete ticket</button>`}</div>`;
+    $("#tfJob").value = w.job || ""; $("#tfName").value = w.name || ""; $("#tfWork").value = w.work || ""; $("#tfQuote").value = w.quote || "";
+    $("#tfRecv").value = toDateInput(w.received || (isNew ? Date.now() : w.created)); $("#tfProm").value = toDateInput(w.promised);
+    $("#tfStageE").value = isNew ? "Received" : stageOf(w);
+    const sel = $("#tfCustSel"); sel.value = pre;
+    const showNew = () => box.querySelectorAll("[data-newcust]").forEach((el) => (el.hidden = sel.value !== "__new"));
+    sel.onchange = showNew; showNew();
+    if (S.tkEdit.focusCustomer) sel.focus();
+    const dupCheck = () => { const j = $("#tfJob").value.trim(); const d = j && S.watches.find((x) => x.id !== w.id && String(x.job || "").toLowerCase() === j.toLowerCase());
+      $("#tfWarn").hidden = !d; if (d) $("#tfWarn").textContent = `Job ${j} is already used by ${d.name}. Job numbers should be unique.`; };
+    $("#tfJob").oninput = dupCheck; dupCheck();
+    $("#tfCancel").onclick = () => (isNew ? go("tickets") : (S.tkEdit = null, render()));
+    if (!isNew) $("#tfDelete").onclick = async () => {
+      if (S.arm !== "tkdel") { S.arm = "tkdel"; $("#tfDelete").textContent = "Confirm: delete ticket, test and photos"; return; }
+      try { await store.deleteWatch(w.id); toast("Ticket deleted"); go("tickets"); } catch (e) { toast("Couldn’t delete: " + (e.code || e.message)); }
+    };
+    $("#tfSave").onclick = async () => {
+      const name = $("#tfName").value.trim(), job = $("#tfJob").value.trim();
+      if (!name && !job) { $("#tfWarn").hidden = false; $("#tfWarn").textContent = "Enter a job number or the watch’s brand and model."; return; }
+      const st = $("#tfStageE").value, custChoice = sel.value;
+      const newCust = { name: $("#tfCName").value.trim(), phone: $("#tfCPhone").value.trim(), email: $("#tfCEmail").value.trim(), notes: "" };
+      const fields = { name: name || "Watch", job, customerId: custChoice, work: $("#tfWork").value.trim(), quote: $("#tfQuote").value.trim(), received: fromDateInput($("#tfRecv").value), promised: fromDateInput($("#tfProm").value) };
+      if (custChoice === "__new" && !newCust.name) { $("#tfWarn").hidden = false; $("#tfWarn").textContent = "Enter the new customer’s name, or choose No customer."; return; }
+      $("#tfSave").disabled = true;
+      try {
+        if (custChoice === "__new") fields.customerId = await store.addCustomer(newCust);
+        if (isNew) {
+          const id = await store.addWatch({ ...fields, stage: st, notes: [{ t: Date.now(), text: "Ticket created · Status: " + st }], ...(st === "Collected" ? { status: "done", completedAt: Date.now(), collectedAt: Date.now() } : {}) });
+          toast("Ticket created"); go("ticket", { ticket: id });
+        } else {
+          await store.updateWatch(w.id, fields);
+          if (st !== stageOf(w)) await setStage({ ...w, ...fields }, st, true);
+          toast("Ticket saved"); S.tkEdit = null; render();
+        }
+      } catch (e) { toast("Couldn’t save the ticket: " + (e.code || e.message)); }
+      $("#tfSave") && ($("#tfSave").disabled = false);
+    };
+  }
+
+  function renderCustomerList() {
+    const q = $("#cuSearch").value.trim().toLowerCase();
+    const list = S.customers.filter((c) => !q || [c.name, c.phone, c.email].some((v) => String(v || "").toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name));
+    const ul = $("#cuList");
+    ul.replaceChildren(...list.map((c) => {
+      const tks = S.watches.filter((w) => w.customerId === c.id), open = tks.filter((w) => stageOf(w) !== "Collected").length;
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.innerHTML = `<span class="t1">${esc(c.name)}</span><span class="r1 small muted">${esc(open ? open + " open" : "")}</span><span class="t2">${esc([c.phone, c.email].filter(Boolean).join(" · ") || "No contact details")}</span><span class="r2 small muted">${esc(tks.length + " ticket" + (tks.length === 1 ? "" : "s"))}</span>`;
+      b.onclick = () => go("customer", { customer: c.id });
+      li.append(b); return li;
+    }));
+    if (!list.length) ul.innerHTML = `<li class="empty-note">${S.customers.length ? "No customers match." : "No customers yet. Tap + New customer, or add one when you create a ticket."}</li>`;
+  }
+  function renderCustomerFile() {
+    const c = S.customers.find((x) => x.id === S.customer), box = $("#cuFile");
+    if (!c) { box.innerHTML = `<p class="empty-note">This customer no longer exists.</p>`; return; }
+    const tks = S.watches.filter((w) => w.customerId === c.id).sort((a, b) => (b.received || b.created) - (a.received || a.created));
+    box.innerHTML = `
+      <div class="filehead"><div><h2>Customer</h2><div class="jobno">${esc(c.name)}</div></div><button class="btn tiny" id="cfEdit">Edit customer</button></div>
+      <div class="kv">
+        <div><span>Phone</span><b class="plain">${esc(c.phone || "—")}</b></div>
+        <div><span>Email</span><b class="plain">${esc(c.email || "—")}</b></div>
+        <div class="wide"><span>Notes</span><b class="plain">${esc(c.notes || "—")}</b></div>
+      </div>
+      <div class="row"><button class="btn" id="cfCopy">Copy contact details</button><button class="btn primary" id="cfNewTicket">+ New ticket for ${esc(c.name.split(" ")[0])}</button></div>
+      <h2>Tickets</h2><ul class="list" id="cfTickets"></ul>`;
+    const ul = $("#cfTickets"); ul.replaceChildren(...tks.map((w) => ticketRow(w)));
+    if (!tks.length) ul.innerHTML = `<li class="empty-note">No tickets for this customer yet.</li>`;
+    $("#cfEdit").onclick = () => { S.cuEdit = {}; render(); };
+    $("#cfNewTicket").onclick = () => go("ticket", { ticket: null, tkEdit: { isNew: true, customerId: c.id } });
+    $("#cfCopy").onclick = async () => {
+      const text = [c.name, c.phone, c.email].filter(Boolean).join("\n");
+      try { await navigator.clipboard.writeText(text); toast("Contact details copied"); } catch { toast("Couldn’t copy. Press and hold the details to select them."); }
+    };
+  }
+  function renderCustomerForm() {
+    const isNew = !S.customer, c = isNew ? {} : S.customers.find((x) => x.id === S.customer) || {};
+    const box = $("#cuFile");
+    box.innerHTML = `
+      <h2>${isNew ? "New customer" : "Edit customer"}</h2>
+      <div class="formgrid">
+        <div class="field wide"><label for="cfName">Name</label><input class="input" id="cfName" maxlength="80"></div>
+        <div class="field"><label for="cfPhone">Phone</label><input class="input" id="cfPhone" maxlength="40" inputmode="tel"></div>
+        <div class="field"><label for="cfEmail">Email</label><input class="input" id="cfEmail" maxlength="120" inputmode="email"></div>
+        <div class="field wide"><label for="cfNotes">Notes</label><textarea class="input" id="cfNotes" placeholder="e.g. Prefers a call, not email"></textarea></div>
+      </div>
+      <p class="warnline" id="cfWarn" hidden></p>
+      <div class="row"><button class="btn primary" id="cfSave">${isNew ? "Add customer" : "Save customer"}</button><button class="btn ghost" id="cfCancel">Cancel</button>
+        ${isNew ? "" : `<button class="btn ghost danger" id="cfDelete">Delete customer</button>`}</div>`;
+    $("#cfName").value = c.name || ""; $("#cfPhone").value = c.phone || ""; $("#cfEmail").value = c.email || ""; $("#cfNotes").value = c.notes || "";
+    $("#cfCancel").onclick = () => (isNew ? go("customers") : (S.cuEdit = false, render()));
+    if (!isNew) $("#cfDelete").onclick = async () => {
+      if (S.arm !== "cudel") { S.arm = "cudel"; $("#cfDelete").textContent = "Confirm: delete (tickets are kept)"; return; }
+      try { await store.deleteCustomer(c.id); toast("Customer deleted. Their tickets are kept."); go("customers"); } catch (e) { toast("Couldn’t delete: " + (e.code || e.message)); }
+    };
+    $("#cfSave").onclick = async () => {
+      const f = { name: $("#cfName").value.trim(), phone: $("#cfPhone").value.trim(), email: $("#cfEmail").value.trim(), notes: $("#cfNotes").value.trim() };
+      if (!f.name) { $("#cfWarn").hidden = false; $("#cfWarn").textContent = "Enter the customer’s name."; return; }
+      try {
+        if (isNew) { const id = await store.addCustomer(f); toast("Customer added"); go("customer", { customer: id }); }
+        else { await store.updateCustomer(c.id, f); toast("Customer saved"); S.cuEdit = false; render(); }
+      } catch (e) { toast("Couldn’t save the customer: " + (e.code || e.message)); }
+    };
+  }
 
   function drawDial(rate) {
     const svg = $("#dial");
@@ -857,6 +1181,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       label("Watch", L, y); label("Job number", R, y, "right"); y += 6.5;
       doc.setFont(F.serif, "normal"); doc.setFontSize(16); doc.setTextColor(...ink); T(w.name, L, y);
       T(w.job || "—", R, y, { align: "right" }); y += 6.5;
+      { const cu = custOf(w); if (cu) { doc.setFont(F.sans, "normal"); doc.setFontSize(9); doc.setTextColor(...muted); T("Customer " + cu.name, L, y); y += 5; } }
       doc.setFont(F.sans, "normal"); doc.setFontSize(9); doc.setTextColor(...muted);
       T(`Test period ${longDate(counted[0].t)} to ${longDate(counted[counted.length - 1].t)} · ${A.days.toFixed(1)} days · ${counted.length} daily photographs`, L, y);
       y += 10;
@@ -945,6 +1270,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       sans(8.5); spaced(doc, "WATCH TIME TEST REPORT", C, y, 0.7); y += 6;
       serif(true, 11); doc.splitTextToSize(F.tx(w.name), W).forEach((l) => { T(l, C, y, { align: "center" }); y += 4.8; });
       if (w.job) { serif(false, 10); T("Job number " + w.job, C, y, { align: "center" }); y += lh; }
+      { const cu = custOf(w); if (cu) { sans(8.5); T("Customer " + cu.name, C, y, { align: "center" }); y += lh; } }
       dash();
       const dfmt = (t) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
       pair("Test from", dfmt(counted[0].t)); pair("Test to", dfmt(counted[counted.length - 1].t));
@@ -1314,7 +1640,11 @@ Reply with JSON only, in exactly this shape:
     const m = (((f.m + (E.shift || 0)) % 60) + 60) % 60;
     const r = { watchId, t: E.t, offset: Math.round(offsetFor(E.t, m, f.s) * 10) / 10, min: m, sec: f.s, method: E.method, saved: Date.now() };
     $("#edSave").disabled = true; $("#edSave").textContent = "Saving…";
-    try { await store.addReading(r, E.file || E.blob); closeEditor(); toast("Reading saved"); }
+    try {
+      await store.addReading(r, E.file || E.blob); closeEditor(); toast("Reading saved");
+      const w = S.watches.find((x) => x.id === watchId);
+      if (w && (!w.stage || ["Received", "Quoted", "Approved", "In workshop"].includes(w.stage))) setStage(w, "Time testing", true);
+    }
     catch (e) { const el = $("#edErr"); el.hidden = false; el.textContent = "Couldn’t save the reading (" + (e.code || e.message) + "). Check your connection and try again."; }
     $("#edSave").textContent = "Save"; $("#edSave").disabled = false;
   };

@@ -40,6 +40,14 @@ Readings and photos are stored on the phone. Uninstalling the app or clearing th
 
 GitHub Pages for a private repository needs a paid GitHub plan. On a free account, make the repository public first (Settings → General → Danger Zone → Change visibility).
 
+## Simple CRM
+
+The **Tickets** and **Customers** tabs keep a simple workshop CRM alongside the tests.
+
+- **Customers**: name, phone, email and notes, with all of their tickets.
+- **Tickets**: one per job number, with the customer, watch, work required, quote, received and promised dates, a status (Received, Quoted, Approved, In workshop, Time testing, Ready for collection, Collected) and a dated notes log.
+- Each watch test links to its ticket file, and each ticket file shows its time test result with buttons to open the test and print the A4 or receipt report. Saving a photo moves a ticket to *Time testing*; completing a test moves it to *Ready for collection*; marking it *Collected* files the job under past jobs. Reports include the customer's name.
+
 ## Brand
 
 The app and both printouts follow the Stein Diamonds brand guideline (2026): Windsor as the primary colour with Antique, Caviar and Almond, the centred monogram-over-logotype lockup, and Unna as the primary typeface. CG Omega isn't available as a web font, so Belleza stands in for it (the app uses CG Omega or Optima when installed). The logo files and fonts are in `brand/`.
