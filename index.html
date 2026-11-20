@@ -255,11 +255,11 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
 <div class="wrap" id="home">
   <div class="statusrow"><div class="status" id="status"><i></i><span>Connecting…</span></div></div>
   <nav class="tabs" id="tabs" aria-label="Sections">
-    <button data-view="tests" aria-pressed="true">Tests</button>
-    <button data-view="tickets" aria-pressed="false">Tickets</button>
+    <button data-view="tickets" aria-pressed="true">Tickets</button>
+    <button data-view="tests" aria-pressed="false">Tests</button>
   </nav>
 
-  <div class="view" id="viewTests">
+  <div class="view" id="viewTests" hidden>
     <section class="panel"><h2>Watches on test</h2><ul class="wlist" id="testList"></ul></section>
   </div>
 
@@ -318,7 +318,7 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
 
   </div>
 
-  <div class="view" id="viewTickets" hidden>
+  <div class="view" id="viewTickets">
     <section class="panel">
       <h2>Open a ticket</h2>
       <form id="tkFind" class="row" autocomplete="off">
@@ -446,7 +446,7 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
   const nextMidnight = (t) => { const d = new Date(t); d.setHours(24, 0, 0, 0); return d.getTime(); };
   const dayLabel = (t, t0) => "Day " + (dayNo(t) - dayNo(t0));
   const fmtDay = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
-    const S = { mode: "connecting", watches: [], readings: [], customers: [], view: "tests", ticket: null, customer: null, tkEdit: null, cuEdit: false, noteDraft: "", sel: null, adding: false, arm: null, menu: false };
+    const S = { mode: "connecting", watches: [], readings: [], customers: [], view: "tickets", ticket: null, customer: null, tkEdit: null, cuEdit: false, noteDraft: "", sel: null, adding: false, arm: null, menu: false };
   let store = null;
 
   // ---------- helpers ----------
@@ -825,7 +825,7 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
 
   function renderViews() {
     if (S.view === "test" && !cur()) S.view = "tests";
-    const tab = { tests: "tests", test: "tests", tickets: "tickets", ticket: "tickets" }[S.view] || "tests";
+    const tab = { tests: "tests", test: "tests", tickets: "tickets", ticket: "tickets" }[S.view] || "tickets";
     document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === tab)));
     for (const [id, v] of [["viewTests", "tests"], ["viewTest", "test"], ["viewTickets", "tickets"], ["viewTicket", "ticket"]]) $("#" + id).hidden = S.view !== v;
     $("#tabs").hidden = !store;
