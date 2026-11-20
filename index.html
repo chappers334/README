@@ -357,9 +357,14 @@ header.top { display: flex; align-items: center; justify-content: space-between;
   const DAY = 86400000;
   // Gain/loss is only shown once a photo is at least this long after the first one.
   // 23 h rather than 24 h so a daily photo taken a little earlier than yesterday's still counts.
-  const MIN_GAP = 23 * 3600000;
-  const fmtWait = (ms) => { const h = Math.floor(ms / 3600000), m = Math.ceil((ms % 3600000) / 60000); return h ? `${h} h ${m} min` : `${m} min`; };
-  const S = { mode: "connecting", watches: [], readings: [], sel: null, adding: false, arm: null, menu: false };
+  // Days run midnight to midnight (phone's local time): a photo on a later calendar day than the first photo counts,
+  // however many hours have passed. The gain/loss maths still uses the exact time between photos.
+  const dayNo = (t) => { const d = new Date(t); return Math.floor((t - d.getTimezoneOffset() * 60000) / DAY); };
+  const laterDay = (t, t0) => dayNo(t) > dayNo(t0);
+  const nextMidnight = (t) => { const d = new Date(t); d.setHours(24, 0, 0, 0); return d.getTime(); };
+  const dayLabel = (t, t0) => "Day " + (dayNo(t) - dayNo(t0));
+  const fmtDay = (t) => new Date(t).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    const S = { mode: "connecting", watches: [], readings: [], sel: null, adding: false, arm: null, menu: false };
   let store = null;
 
   // ---------- helpers ----------
@@ -394,7 +399,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
         let rel = b ? wrap(r.offset - b.offset) : 0;
         if (r !== b) rel = snapMinute(rel, expectRel(done, r.t));
         const x = { ...r, rel: Math.round(rel * 10) / 10, first: r === b };
-        x.counted = x.first || r.t - b.t >= MIN_GAP;
+        x.counted = x.first || laterDay(r.t, b.t);
         if (x.counted) done.push(x);
         if (x.counted && prev) { x.dayChange = Math.round((x.rel - prev.rel) * 10) / 10; x.gapDays = (r.t - prev.t) / DAY; }
         if (x.counted) prev = x;
@@ -429,8 +434,8 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     return (a + 360) % 360;
   }
   function analyse(rs) {
-    const out = { n: rs.length, readyAt: rs.length ? rs[0].t + MIN_GAP : 0 };
-    if (rs.length < 2 || rs[rs.length - 1].t - rs[0].t < MIN_GAP) return out;
+    const out = { n: rs.length, readyAt: rs.length ? nextMidnight(rs[0].t) : 0 };
+    if (rs.length < 2 || !laterDay(rs[rs.length - 1].t, rs[0].t)) return out;
     const t0 = rs[0].t, xs = rs.map((r) => (r.t - t0) / DAY), ys = rs.map((r) => r.rel);
     const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
     let sxx = 0, sxy = 0;
@@ -561,7 +566,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     const all = S.readings.filter((r) => r.watchId === w.id).sort((a, b) => a.t - b.t);
     const { run, old } = withRel(all, w.runStart || 0);
     const counted = run.filter((r) => r.counted);
-    const A = analyse(counted); A.readyAt = run.length ? run[0].t + MIN_GAP : 0;
+    const A = analyse(counted); A.readyAt = run.length ? nextMidnight(run[0].t) : 0;
     $("#sumTitle").textContent = w.name + (w.job ? " · Job " + w.job : "");
 
     const big = $("#rateBig"), ver = $("#rateVerdict");
@@ -569,7 +574,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       big.innerHTML = "—";
       ver.className = "verdict";
       ver.textContent = run.length === 0 ? (w.status === "done" ? "This job has no readings." : "Take your first photo to start the test. It becomes the starting point (0 s).")
-        : `Starting point saved. Gain or loss is shown from photos taken after ${fmtWhen(A.readyAt)}.`;
+        : `Starting point saved. Gain or loss is shown from tomorrow’s photo (${fmtDay(A.readyAt)} or later).`;
       $("#stWeek").textContent = "—"; $("#stChange").textContent = "—";
       $("#stDays").textContent = run.length ? "0 / " + run.length : "—";
       $("#cosc").innerHTML = "";
@@ -613,7 +618,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       const isOld = r.t < (w.runStart || 0), early = !r.counted;
       let delta = "";
       if (r.first) delta = isOld ? "Start of earlier test · 0 s" : "Starting point · 0 s";
-      else if (early) delta = "Under 1 day after the first photo, so not counted";
+      else if (early) delta = "Same day as the first photo, so not counted";
       else if (r.dayChange !== undefined) delta = `${r.dayChange < 0 ? "Lost" : r.dayChange > 0 ? "Gained" : "No change"} over ${fmtGap(r.gapDays)} since previous photo${isOld ? " · earlier test" : ""}`;
       const main = document.createElement("div"); main.className = "main";
       main.innerHTML = `<span class="when"></span><span class="sub num"></span><span class="sub"></span>`;
@@ -637,7 +642,11 @@ header.top { display: flex; align-items: center; justify-content: space-between;
         <div class="small muted">Total ${fmtDur(A.change)} over ${fmtGap(A.days)}, from ${changes} daily change${changes === 1 ? "" : "s"}${old.length ? " (current test only)" : ""}.</div>`;
     }
   }
-  function fmtGap(d) { return d < 1.95 && d > 0.95 ? (d >= 1.05 ? d.toFixed(1) + " days" : "1 day") : d.toFixed(1) + " days"; }
+  // Time between photos: hours and minutes up to a day and a half, otherwise days
+  function fmtGap(d) {
+    if (d < 1.5) { const mins = Math.round(d * 1440), h = Math.floor(mins / 60), m = mins % 60; return m ? `${h} h ${m} min` : `${h} h`; }
+    return d.toFixed(1) + " days";
+  }
 
   // ---------- past jobs ----------
   function jobStats(w) {
@@ -872,7 +881,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
         else { doc.setDrawColor(...almond); doc.rect(cx.photo + 1.5, y, 18, 18); }
         const mid = y + 10.5;
         doc.setFont(F.serif, "bold"); doc.setFontSize(11); doc.setTextColor(...ink);
-        T(r.first ? "Start" : "Day " + Math.round((r.t - counted[0].t) / DAY), cx.day, mid);
+        T(r.first ? "Start" : dayLabel(r.t, counted[0].t), cx.day, mid);
         doc.setFont(F.sans, "normal"); doc.setFontSize(9.5); T(longDate(r.t), cx.date, mid);
         if (r.first) { doc.setTextColor(...muted); doc.setFont(F.serif, "normal"); doc.setFontSize(10.5); T("Starting point", cx.change, mid, { align: "right" }); T("0.0 s", cx.total - 1.5, mid, { align: "right" }); }
         else {
@@ -945,7 +954,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       dash();
       sans(7.5); doc.text("DAY / DATE", L, y, { charSpace: 0.4 }); { const s2 = "GAIN / LOSS"; doc.text(s2, R - doc.getTextWidth(s2) - 0.4 * (s2.length - 1), y, { charSpace: 0.4 }); } y += lh + 0.8;
       counted.forEach((r) => {
-        serif(true, 9.5); T(r.first ? "Start" : "Day " + Math.round((r.t - counted[0].t) / DAY), L, y);
+        serif(true, 9.5); T(r.first ? "Start" : dayLabel(r.t, counted[0].t), L, y);
         sans(8); T(shortDate(r.t), L + 12, y);
         serif(true, 10); T(r.first ? "0.0 s" : fmtDur(r.dayChange), R, y, { align: "right" }); y += lh;
         if (!r.first) { serif(false, 8); T("total " + fmtDur(r.rel), R, y, { align: "right" }); y += lh - 0.4; }
@@ -1252,8 +1261,8 @@ Reply with JSON only, in exactly this shape:
     const { run } = w ? withRel(S.readings.filter((r) => r.watchId === w.id && r.t < E.t).sort((a, b) => a.t - b.t), w.runStart || 0) : { run: [] };
     if (!run.length) {
       box.innerHTML = `<span class="muted small">First photo of this test</span><span class="big">0 s</span><span class="small muted num">This photo is the starting point. Watch read ${fmtRead({ min: f.m, sec: f.s })} at ${fmtClock(E.t)}.</span>`;
-    } else if (E.t - run[0].t < MIN_GAP) {
-      box.innerHTML = `<span class="muted small">Too soon to measure</span><span class="big">—</span><span class="small muted">Only ${fmtWait(E.t - run[0].t)} since the first photo. Gain or loss is shown for photos taken after ${fmtWhen(run[0].t + MIN_GAP)}. You can still save this one.</span>`;
+    } else if (!laterDay(E.t, run[0].t)) {
+      box.innerHTML = `<span class="muted small">Same day as the first photo</span><span class="big">—</span><span class="small muted">Gain or loss is shown from tomorrow’s photo (${fmtDay(nextMidnight(run[0].t))} or later). You can still save this one.</span>`;
     } else {
       const raw = wrap(o - run[0].offset);
       const rel = snapMinute(raw, expectRel(run.filter((r) => r.counted), E.t));
