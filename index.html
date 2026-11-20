@@ -849,7 +849,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       const logo = logoImage(true), lw = 58, lh = lw * logo.ratio;
       doc.addImage(logo.data, "PNG", C - lw / 2, 14, lw, lh);
       let y = 14 + lh + 9;
-      doc.setFont(F.sans, "normal"); doc.setFontSize(10.5); doc.setTextColor(...windsor); spaced(doc, "WATCH RATE REPORT", C, y, 1.6);
+      doc.setFont(F.sans, "normal"); doc.setFontSize(10.5); doc.setTextColor(...windsor); spaced(doc, "WATCH TIME TEST REPORT", C, y, 1.6);
       y += 5; doc.setDrawColor(...almond); doc.setLineWidth(0.3); doc.line(C - 22, y, C + 22, y);
       y += 11;
 
@@ -942,7 +942,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
       doc.setTextColor(0);
       let y = 6;
       const lw = 42, lhh = lw * logo.ratio; doc.addImage(logo.data, "PNG", C - lw / 2, y, lw, lhh); y += lhh + 6;
-      sans(8.5); spaced(doc, "WATCH RATE REPORT", C, y, 1.1); y += 6;
+      sans(8.5); spaced(doc, "WATCH TIME TEST REPORT", C, y, 0.7); y += 6;
       serif(true, 11); doc.splitTextToSize(F.tx(w.name), W).forEach((l) => { T(l, C, y, { align: "center" }); y += 4.8; });
       if (w.job) { serif(false, 10); T("Job number " + w.job, C, y, { align: "center" }); y += lh; }
       dash();
@@ -991,7 +991,7 @@ header.top { display: flex; align-items: center; justify-content: space-between;
     try {
       const [jsPDF, fonts] = await Promise.all([loadJsPDF(), loadBrandFonts()]);
       const doc = kind === "receipt" ? buildReceipt(jsPDF, w, counted, A, fonts) : await buildA4(jsPDF, w, counted, A, fonts);
-      const filename = ("Stein Diamonds rate report " + w.name + (w.job ? " job " + w.job : "")).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) + (kind === "receipt" ? " receipt.pdf" : " A4.pdf");
+      const filename = ("Stein Diamonds watch time test report " + w.name + (w.job ? " job " + w.job : "")).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) + (kind === "receipt" ? " receipt.pdf" : " A4.pdf");
       const blob = doc.output("blob");
       if (downloader) {
         const res = await downloader.save({ filename, data: blob });
