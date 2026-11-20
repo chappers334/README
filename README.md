@@ -40,13 +40,13 @@ Readings and photos are stored on the phone. Uninstalling the app or clearing th
 
 GitHub Pages for a private repository needs a paid GitHub plan. On a free account, make the repository public first (Settings → General → Danger Zone → Change visibility).
 
-## Simple CRM
+## Tickets and tests
 
-The **Tickets** and **Customers** tabs keep a simple workshop CRM alongside the tests.
+Every watch is tested under an Elefra ticket.
 
-- **Customers**: name, phone, email and notes, with all of their tickets.
-- **Tickets**: one per job number, with the customer, watch, work required, quote, received and promised dates, a status (Received, Quoted, Approved, In workshop, Time testing, Ready for collection, Collected) and a dated notes log.
-- Each watch test links to its ticket file, and each ticket file shows its time test result with buttons to open the test and print the A4 or receipt report. Saving a photo moves a ticket to *Time testing*; completing a test moves it to *Ready for collection*; marking it *Collected* files the job under past jobs. Reports include the customer's name.
+- **New ticket** (camera button on the Tickets screen): photograph the watch, the AI fills in the brand and model, then enter the **Elefra ticket number** (required, must be unique), stock number, work required, quote price and date received in workshop.
+- **Tickets**: type a ticket number to open its ticket file: photo, details, status, notes and the watch's time test, with **Start time test** / **Open time test** and the A4 and receipt reports.
+- **Tests**: a column of every watch on test with its picture and ticket number; tap one to open its test. The test screen has **Open ticket** to go back to the ticket.
 
 ## Brand
 
