@@ -328,6 +328,11 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
       <p class="note" id="tkMsg" hidden></p>
       <ul class="list" id="tkMatches"></ul>
     </section>
+    <section class="panel" id="recentPanel" hidden>
+      <h2>Recent tickets</h2>
+      <ul class="wlist" id="recentList"></ul>
+      <button class="btn" id="recentMore" hidden>Show all tickets</button>
+    </section>
   </div>
 
   <div class="view" id="viewTicket" hidden>
@@ -835,7 +840,7 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
     $("#fabLabel").textContent = S.view === "tickets" ? "New ticket" : "Photograph watch";
     if (!store) return;
     if (S.view === "tests") renderTestList();
-    if (S.view === "tickets") renderMatches();
+    if (S.view === "tickets") { renderMatches(); renderRecent(); }
     const tk = $("#tkFile");
     if (S.view === "ticket") { if (S.tkEdit) { if (tk._form !== S.tkEdit) { tk._form = S.tkEdit; renderTicketForm(); } } else { tk._form = null; renderTicketFile(); } }
   }
@@ -855,6 +860,27 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
     }));
     if (!list.length) ul.innerHTML = `<li class="empty-note">No watches on test. To start one, open its ticket in Tickets and tap Start time test.</li>`;
   }
+
+  // Most recent activity first: ticket created, a note or status change, or a test photo
+  const lastActivity = (w) => Math.max(w.created || 0, w.received || 0, ...(w.notes || []).map((n) => n.t || 0), ...readingsOf(w).map((r) => r.t || 0));
+  function renderRecent() {
+    const all = [...S.watches].sort((a, b) => lastActivity(b) - lastActivity(a));
+    $("#recentPanel").hidden = !all.length;
+    const shown = S.recentAll ? all : all.slice(0, 20);
+    $("#recentMore").hidden = all.length <= 20 || S.recentAll;
+    $("#recentMore").textContent = `Show all ${all.length} tickets`;
+    $("#recentList").replaceChildren(...shown.map((w) => {
+      const st = stageOf(w), A = jobStats(w).A, li = document.createElement("li"), b = document.createElement("button");
+      const img = document.createElement("img"); img.alt = ""; watchPic(w).then((src) => { if (src) img.src = src; });
+      const mid = document.createElement("span");
+      mid.innerHTML = `<span class="tno">${esc(w.job || "—")}</span><br><span class="wn">${esc(w.name)}</span><br><span class="small muted">${esc(dShort(lastActivity(w)))}</span>`;
+      const rt = document.createElement("span"); rt.className = "rt";
+      rt.innerHTML = `<span class="stage ${stageClass(st)}">${esc(st)}</span>${A.rate === undefined ? "" : `<span class="${r1(A.rate) < 0 ? "loss" : r1(A.rate) > 0 ? "gain" : ""}">${esc(fmtDur(A.rate))}/day</span>`}`;
+      b.append(img, mid, rt); b.onclick = () => go("ticket", { ticket: w.id });
+      li.append(b); return li;
+    }));
+  }
+  $("#recentMore").onclick = () => { S.recentAll = true; render(); };
 
   function renderMatches() {
     const ul = $("#tkMatches"), near = S.tkNear || [];
