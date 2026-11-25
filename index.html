@@ -598,16 +598,34 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
     if (!id) return null;
     const assets = await window.claude.use("assets");
     const local = localStore();
-    const base = "data/users/" + id;
+    // One shared workshop store: everyone the app is shared with (Contributor or Editor) sees the same tickets and tests
+    const base = "shop/main", mine = "data/users/" + id;
     const W = db.collection(base + "/watches"), R = db.collection(base + "/readings"), CU = db.collection(base + "/customers");
     const clean = (o) => { const c = {}; for (const k in o) if (o[k] !== undefined && k !== "id") c[k] = o[k]; return c; };
+    // Earlier versions kept data in each person's private area. Copy it into the shared store once per person
+    // (same ids, so tests stay linked to their tickets). The private copy is left in place as a backup.
+    async function copyPrivateData() {
+      const flag = db.doc(base + "/migrated/" + id);
+      try { if ((await flag.get()).exists) return 0; } catch { return 0; }
+      $("#storageNote").textContent = "Moving your saved tickets into the shared workshop…";
+      let n = 0;
+      for (const name of ["watches", "readings", "customers"]) {
+        let snap; try { snap = await db.collection(mine + "/" + name).get(); } catch { continue; }
+        for (const d of snap.docs) { await db.doc(base + "/" + name + "/" + d.id).set({ ...d.data() }); n++; }
+      }
+      await flag.set({ at: Date.now(), copied: n });
+      $("#storageNote").textContent = "";
+      return n;
+    }
+    try { const n = await copyPrivateData(); if (n) setTimeout(() => toast("Your saved tickets are now in the shared workshop"), 800); }
+    catch (e) { $("#storageNote").textContent = "Couldn’t move your saved tickets into the shared workshop (" + (e && e.code || "error") + "). Reload to try again."; }
     return {
       kind: "cloud", assets: !!assets,
       start() {
         let got = 0;
         const timer = setTimeout(() => { if (got < 3) $("#storageNote").textContent = "Still loading your readings… check your connection."; }, 10000);
         const done = () => { if (++got === 3) { clearTimeout(timer); $("#storageNote").textContent = ""; } };
-        const fail = (e) => { clearTimeout(timer); $("#storageNote").textContent = "Couldn’t load saved readings (" + (e && e.code || "error") + "). Reload to try again."; };
+        const fail = (e) => { clearTimeout(timer); $("#storageNote").textContent = (e && /not_granted|permission|denied/.test(e.code || "")) ? "You don’t have access to the workshop’s tickets. Ask the owner to share the app with you as an Editor." : "Couldn’t load saved readings (" + (e && e.code || "error") + "). Reload to try again."; };
         let fw = false, fr = false;
         W.onSnapshot((s) => { S.watches = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fw) { fw = true; done(); } render(); }, fail);
         R.onSnapshot((s) => { S.readings = s.docs.map((d) => ({ id: d.id, ...d.data() })); if (!fr) { fr = true; done(); } render(); }, fail);
@@ -658,7 +676,7 @@ textarea.input { min-height: 70px; resize: vertical; font: inherit; }
 
     const st = $("#status");
     st.className = "status " + (store ? store.kind : "");
-    st.querySelector("span").textContent = !store ? "Connecting…" : store.kind === "cloud" ? "Saved to your account" : "Saved on this phone";
+    st.querySelector("span").textContent = !store ? "Connecting…" : store.kind === "cloud" ? "Shared workshop · saved to the cloud" : "Saved on this phone";
     renderViews();
 
     const w = cur();
